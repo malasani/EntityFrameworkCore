@@ -765,6 +765,49 @@ namespace Microsoft.EntityFrameworkCore
             return modelBuilder;
         }
 
+        [ConditionalFact]
+        public virtual void Keyless_and_key_attributes_which_conflict_cause_warning()
+        {
+            var modelBuilder = CreateModelBuilder();
+            var entity = modelBuilder.Entity<KeylessAndKeyAttributes>();
+
+            Assert.True(entity.Metadata.IsKeyless);
+            Assert.Null(entity.Metadata.FindPrimaryKey());
+
+            var logEntry = Fixture.ListLoggerFactory.Log.Single();
+            Assert.Equal(LogLevel.Warning, logEntry.Level);
+            Assert.Equal(
+                CoreResources.LogConflictingKeylessAndKeyAttributes(new TestLogger<TestLoggingDefinitions>())
+                    .GenerateMessage("NotAKey", nameof(KeylessAndKeyAttributes)),
+                logEntry.Message);
+        }
+
+        [ConditionalFact]
+        public virtual void Keyless_fluent_api_and_key_attribute_do_not_cause_warning()
+        {
+            var modelBuilder = CreateModelBuilder();
+            var entity = modelBuilder.Entity<KeylessFluentApiAndKeyAttribute>();
+            entity.HasNoKey();
+
+            Assert.True(entity.Metadata.IsKeyless);
+            Assert.Null(entity.Metadata.FindPrimaryKey());
+
+            Assert.Empty(Fixture.ListLoggerFactory.Log);
+        }
+
+        [ConditionalFact]
+        public virtual void Key_fluent_api_and_keyless_attribute_do_not_cause_warning()
+        {
+            var modelBuilder = CreateModelBuilder();
+            var entity = modelBuilder.Entity<KeyFluentApiAndKeylessAttribute>();
+            entity.HasKey("MyKey");
+
+            Assert.False(entity.Metadata.IsKeyless);
+            Assert.NotNull(entity.Metadata.FindPrimaryKey());
+
+            Assert.Empty(Fixture.ListLoggerFactory.Log);
+        }
+
         private class CompositeKeyAttribute
         {
             [Key]
@@ -1594,9 +1637,9 @@ namespace Microsoft.EntityFrameworkCore
 
             Assert.Equal(
                 nameof(Book.Label),
-                model.FindEntityType(typeof(BookLabel)).FindNavigation(nameof(BookLabel.Book)).FindInverse()?.Name);
+                model.FindEntityType(typeof(BookLabel)).FindNavigation(nameof(BookLabel.Book)).Inverse?.Name);
 
-            Assert.Null(model.FindEntityType(typeof(Book)).FindNavigation(nameof(Book.AlternateLabel)).FindInverse());
+            Assert.Null(model.FindEntityType(typeof(Book)).FindNavigation(nameof(Book.AlternateLabel)).Inverse);
         }
 
         [ConditionalFact]
@@ -1610,8 +1653,8 @@ namespace Microsoft.EntityFrameworkCore
 
             Assert.Equal(
                 nameof(Book.Label), model.FindEntityType(typeof(SpecialBookLabel))
-                    .FindNavigation(nameof(SpecialBookLabel.Book)).FindInverse()?.Name);
-            Assert.Null(model.FindEntityType(typeof(Book)).FindNavigation(nameof(Book.AlternateLabel)).FindInverse());
+                    .FindNavigation(nameof(SpecialBookLabel.Book)).Inverse?.Name);
+            Assert.Null(model.FindEntityType(typeof(Book)).FindNavigation(nameof(Book.AlternateLabel)).Inverse);
 
             modelBuilder.Entity<SpecialBookLabel>().HasBaseType((Type)null);
 
@@ -1634,7 +1677,7 @@ namespace Microsoft.EntityFrameworkCore
             Assert.Null(model.FindEntityType(typeof(BookLabel)));
             Assert.Equal(
                 nameof(Book.Label), model.FindEntityType(typeof(SpecialBookLabel))
-                    .FindNavigation(nameof(SpecialBookLabel.Book)).FindInverse()?.Name);
+                    .FindNavigation(nameof(SpecialBookLabel.Book)).Inverse?.Name);
             Assert.Null(model.FindEntityType(typeof(Book)).FindNavigation(nameof(Book.AlternateLabel)));
         }
 
@@ -1665,7 +1708,7 @@ namespace Microsoft.EntityFrameworkCore
             Assert.Null(model.FindEntityType(typeof(BookLabel)));
             Assert.Equal(
                 nameof(Book.Label), model.FindEntityType(typeof(SpecialBookLabel))
-                    .FindNavigation(nameof(SpecialBookLabel.Book)).FindInverse()?.Name);
+                    .FindNavigation(nameof(SpecialBookLabel.Book)).Inverse?.Name);
             Assert.Null(model.FindEntityType(typeof(Book)).FindNavigation(nameof(Book.AlternateLabel)));
         }
 
@@ -1683,10 +1726,10 @@ namespace Microsoft.EntityFrameworkCore
             Assert.Null(model.FindEntityType(typeof(BookLabel)));
             Assert.Equal(
                 nameof(Book.Label), model.FindEntityType(typeof(ExtraSpecialBookLabel))
-                    .FindNavigation(nameof(ExtraSpecialBookLabel.Book)).FindInverse()?.Name);
+                    .FindNavigation(nameof(ExtraSpecialBookLabel.Book)).Inverse?.Name);
             Assert.Null(
                 model.FindEntityType(typeof(ExtraSpecialBookLabel))
-                    .FindNavigation(nameof(ExtraSpecialBookLabel.ExtraSpecialBook)).FindInverse());
+                    .FindNavigation(nameof(ExtraSpecialBookLabel.ExtraSpecialBook)).Inverse);
         }
 
         protected class Book
@@ -1773,11 +1816,11 @@ namespace Microsoft.EntityFrameworkCore
             modelBuilder.Entity<Relation>();
 
             var accountNavigation = model.FindEntityType(typeof(Relation)).FindNavigation(nameof(Relation.AccountManager));
-            Assert.Equal(nameof(User.AccountManagerRelations), accountNavigation?.FindInverse()?.Name);
+            Assert.Equal(nameof(User.AccountManagerRelations), accountNavigation?.Inverse?.Name);
             Assert.Equal(nameof(Relation.AccountId), accountNavigation?.ForeignKey.Properties.First().Name);
 
             var salesNavigation = model.FindEntityType(typeof(Relation)).FindNavigation(nameof(Relation.SalesManager));
-            Assert.Equal(nameof(User.SalesManagerRelations), salesNavigation?.FindInverse()?.Name);
+            Assert.Equal(nameof(User.SalesManagerRelations), salesNavigation?.Inverse?.Name);
             Assert.Equal(nameof(Relation.SalesId), salesNavigation?.ForeignKey.Properties.First().Name);
 
             Validate(modelBuilder);
@@ -1815,8 +1858,8 @@ namespace Microsoft.EntityFrameworkCore
             var modelBuilder = CreateModelBuilder();
             var qEntity = modelBuilder.Entity<Q>().Metadata;
 
-            Assert.Equal(nameof(P.QRef), qEntity.FindNavigation(nameof(Q.PRef)).FindInverse().Name);
-            Assert.Equal(nameof(E.QRefDerived), qEntity.FindNavigation(nameof(Q.ERef)).FindInverse().Name);
+            Assert.Equal(nameof(P.QRef), qEntity.FindNavigation(nameof(Q.PRef)).Inverse.Name);
+            Assert.Equal(nameof(E.QRefDerived), qEntity.FindNavigation(nameof(Q.ERef)).Inverse.Name);
         }
 
         public class Q
@@ -1855,10 +1898,10 @@ namespace Microsoft.EntityFrameworkCore
 
             Assert.Equal(
                 nameof(Post7698.BlogNav),
-                model.FindEntityType(typeof(Blog7698)).FindNavigation(nameof(Blog7698.PostNav)).FindInverse().Name);
+                model.FindEntityType(typeof(Blog7698)).FindNavigation(nameof(Blog7698.PostNav)).Inverse.Name);
             Assert.Equal(
                 nameof(SpecialPost7698.BlogInverseNav),
-                model.FindEntityType(typeof(Blog7698)).FindNavigation(nameof(Blog7698.ASpecialPostNav)).FindInverse().Name);
+                model.FindEntityType(typeof(Blog7698)).FindNavigation(nameof(Blog7698.ASpecialPostNav)).Inverse.Name);
         }
 
         protected class Blog7698
@@ -2319,6 +2362,9 @@ namespace Microsoft.EntityFrameworkCore
                 modelBuilder.Ignore<BookLabel>();
                 modelBuilder.Entity<BookDetails>();
                 modelBuilder.Entity<Book>().Property(d => d.Id).ValueGeneratedNever();
+                modelBuilder.Entity<KeylessAndKeyAttributes>();
+                modelBuilder.Entity<KeylessFluentApiAndKeyAttribute>();
+                modelBuilder.Entity<KeyFluentApiAndKeylessAttribute>();
             }
 
             public override DbContextOptionsBuilder AddOptions(DbContextOptionsBuilder builder)
@@ -2326,7 +2372,8 @@ namespace Microsoft.EntityFrameworkCore
                     c => c
                         .Log(CoreEventId.ConflictingForeignKeyAttributesOnNavigationAndPropertyWarning)
                         .Log(CoreEventId.ForeignKeyAttributesOnBothNavigationsWarning)
-                        .Log(CoreEventId.ForeignKeyAttributesOnBothPropertiesWarning));
+                        .Log(CoreEventId.ForeignKeyAttributesOnBothPropertiesWarning)
+                        .Log(CoreEventId.ConflictingKeylessAndKeyAttributesWarning));
 
             protected override bool ShouldLogCategory(string logCategory)
                 => logCategory == DbLoggerCategory.Model.Name;
@@ -2403,6 +2450,25 @@ namespace Microsoft.EntityFrameworkCore
         protected class Details
         {
             public string Name { get; set; }
+        }
+
+        [Keyless]
+        protected class KeylessAndKeyAttributes
+        {
+            [Key]
+            public int NotAKey { get; set; }
+        }
+
+        protected class KeylessFluentApiAndKeyAttribute
+        {
+            [Key]
+            public int NotAKey { get; set; }
+        }
+
+        [Keyless]
+        protected class KeyFluentApiAndKeylessAttribute
+        {
+            public int MyKey { get; set; }
         }
     }
 }

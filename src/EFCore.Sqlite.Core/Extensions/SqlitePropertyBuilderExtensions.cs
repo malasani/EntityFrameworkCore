@@ -1,7 +1,6 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-using System;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Sqlite.Metadata.Internal;
@@ -49,7 +48,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="fromDataAnnotation"> Indicates whether the configuration was specified using a data annotation. </param>
         /// <returns>
         ///     The same builder instance if the configuration was applied,
-        ///     <c>null</c> otherwise.
+        ///     <see langword="null" /> otherwise.
         /// </returns>
         public static IConventionPropertyBuilder HasSrid(
             [NotNull] this IConventionPropertyBuilder propertyBuilder,
@@ -72,7 +71,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="propertyBuilder"> The builder for the property being configured. </param>
         /// <param name="srid"> The SRID. </param>
         /// <param name="fromDataAnnotation"> Indicates whether the configuration was specified using a data annotation. </param>
-        /// <returns> <c>true</c> if the given value can be set as the SRID for the column. </returns>
+        /// <returns> <see langword="true" /> if the given value can be set as the SRID for the column. </returns>
         public static bool CanSetSrid(
             [NotNull] this IConventionPropertyBuilder propertyBuilder,
             int? srid,
@@ -90,7 +89,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="fromDataAnnotation"> Indicates whether the configuration was specified using a data annotation. </param>
         /// <returns>
         ///     The same builder instance if the configuration was applied,
-        ///     <c>null</c> otherwise.
+        ///     <see langword="null" /> otherwise.
         /// </returns>
         public static IConventionPropertyBuilder HasGeometricDimension(
             [NotNull] this IConventionPropertyBuilder propertyBuilder,
@@ -113,7 +112,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="propertyBuilder"> The builder for the property being configured. </param>
         /// <param name="dimension"> The dimension. </param>
         /// <param name="fromDataAnnotation"> Indicates whether the configuration was specified using a data annotation. </param>
-        /// <returns> <c>true</c> if the given value can be set as the dimension for the column. </returns>
+        /// <returns> <see langword="true" /> if the given value can be set as the dimension for the column. </returns>
         public static bool CanSetGeometricDimension(
             [NotNull] this IConventionPropertyBuilder propertyBuilder,
             [CanBeNull] string dimension,

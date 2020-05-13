@@ -51,6 +51,8 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Query.Internal
                     return _sqlExpressionFactory.Function(
                         instance,
                         propertyName,
+                        nullable: true,
+                        instancePropagatesNullability: true,
                         returnType);
                 }
             }

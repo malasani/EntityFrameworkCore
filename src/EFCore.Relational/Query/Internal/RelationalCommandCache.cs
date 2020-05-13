@@ -17,7 +17,7 @@ namespace Microsoft.EntityFrameworkCore.Query.Internal
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public class RelationalCommandCache
+    public class RelationalCommandCache : IPrintableExpression
     {
         private static readonly ConcurrentDictionary<object, object> _syncObjects
             = new ConcurrentDictionary<object, object>();
@@ -25,22 +25,33 @@ namespace Microsoft.EntityFrameworkCore.Query.Internal
         private readonly IMemoryCache _memoryCache;
         private readonly IQuerySqlGeneratorFactory _querySqlGeneratorFactory;
         private readonly SelectExpression _selectExpression;
-        private readonly RelationalParameterBasedQueryTranslationPostprocessor _relationalParameterBasedQueryTranslationPostprocessor;
+        private readonly RelationalParameterBasedSqlProcessor _relationalParameterBasedSqlProcessor;
 
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
         public RelationalCommandCache(
             [NotNull] IMemoryCache memoryCache,
-            [NotNull] ISqlExpressionFactory sqlExpressionFactory,
             [NotNull] IQuerySqlGeneratorFactory querySqlGeneratorFactory,
-            [NotNull] IRelationalParameterBasedQueryTranslationPostprocessorFactory relationalParameterBasedQueryTranslationPostprocessorFactory,
+            [NotNull] IRelationalParameterBasedSqlProcessorFactory relationalParameterBasedSqlProcessorFactory,
             bool useRelationalNulls,
             [NotNull] SelectExpression selectExpression)
         {
             _memoryCache = memoryCache;
             _querySqlGeneratorFactory = querySqlGeneratorFactory;
             _selectExpression = selectExpression;
-            _relationalParameterBasedQueryTranslationPostprocessor = relationalParameterBasedQueryTranslationPostprocessorFactory.Create(useRelationalNulls);
+            _relationalParameterBasedSqlProcessor = relationalParameterBasedSqlProcessorFactory.Create(useRelationalNulls);
         }
 
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
         public virtual IRelationalCommand GetRelationalCommand([NotNull] IReadOnlyDictionary<string, object> parameters)
         {
             var cacheKey = new CommandCacheKey(_selectExpression, parameters);
@@ -55,8 +66,7 @@ namespace Microsoft.EntityFrameworkCore.Query.Internal
 
                 try
                 {
-                    var (selectExpression, canCache) =
-                        _relationalParameterBasedQueryTranslationPostprocessor.Optimize(_selectExpression, parameters);
+                    var selectExpression = _relationalParameterBasedSqlProcessor.Optimize(_selectExpression, parameters, out var canCache);
                     relationalCommand = _querySqlGeneratorFactory.Create().GetCommand(selectExpression);
 
                     if (canCache)
@@ -71,6 +81,22 @@ namespace Microsoft.EntityFrameworkCore.Query.Internal
             }
 
             return relationalCommand;
+        }
+
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
+        public virtual void Print(ExpressionPrinter expressionPrinter)
+        {
+            expressionPrinter.AppendLine("RelationalCommandCache.SelectExpression(");
+            using (expressionPrinter.Indent())
+            {
+                expressionPrinter.Visit(_selectExpression);
+                expressionPrinter.Append(")");
+            }
         }
 
         private readonly struct CommandCacheKey

@@ -52,6 +52,9 @@ namespace Microsoft.EntityFrameworkCore.Query
         public override Task DateTimeOffset_Contains_Less_than_Greater_than(bool async)
             => AssertTranslationFailed(() => base.DateTimeOffset_Contains_Less_than_Greater_than(async));
 
+        public override Task DateTimeOffset_Date_returns_datetime(bool async)
+            => AssertTranslationFailed(() => base.DateTimeOffset_Date_returns_datetime(async));
+
         // Sqlite does not support cross/outer apply
         public override Task Correlated_collections_inner_subquery_predicate_references_outer_qsre(bool async) => null;
 
@@ -66,6 +69,14 @@ namespace Microsoft.EntityFrameworkCore.Query
         public override Task Outer_parameter_in_join_key(bool async) => null;
 
         public override Task Outer_parameter_in_join_key_inner_and_outer(bool async) => null;
+
+        public override Task Subquery_projecting_nullable_scalar_contains_nullable_value_needs_null_expansion(bool async) => null;
+
+        public override Task Subquery_projecting_nullable_scalar_contains_nullable_value_needs_null_expansion_negated(bool async) => null;
+
+        public override Task Subquery_projecting_non_nullable_scalar_contains_non_nullable_value_doesnt_need_null_expansion(bool async) => null;
+
+        public override Task Subquery_projecting_non_nullable_scalar_contains_non_nullable_value_doesnt_need_null_expansion_negated(bool async) => null;
 
         [ConditionalTheory(Skip = "Issue #17230")]
         public override Task Project_collection_navigation_nested_with_take_composite_key(bool async)
@@ -131,8 +142,43 @@ WHERE length(""s"".""Banner"") = @__p_0");
 
 SELECT COUNT(*)
 FROM ""Squads"" AS ""s""
-WHERE (length(""s"".""Banner"") = length(@__byteArrayParam)) OR (length(""s"".""Banner"") IS NULL AND length(@__byteArrayParam) IS NULL)");
+WHERE length(""s"".""Banner"") = length(@__byteArrayParam)");
         }
+
+        public override async Task Byte_array_filter_by_SequenceEqual(bool async)
+        {
+            await base.Byte_array_filter_by_SequenceEqual(async);
+
+            AssertSql(@"@__byteArrayParam_0='0x0405060708' (Size = 5) (DbType = String)
+
+SELECT ""s"".""Id"", ""s"".""Banner"", ""s"".""Banner5"", ""s"".""InternalNumber"", ""s"".""Name""
+FROM ""Squads"" AS ""s""
+WHERE ""s"".""Banner5"" = @__byteArrayParam_0");
+        }
+
+        [ConditionalTheory(Skip = "PR #19774")]
+        public override Task TimeSpan_Hours(bool async) => base.TimeSpan_Hours(async);
+
+        [ConditionalTheory(Skip = "PR #19774")]
+        public override Task TimeSpan_Minutes(bool async) => base.TimeSpan_Minutes(async);
+
+        [ConditionalTheory(Skip = "PR #19774")]
+        public override Task TimeSpan_Seconds(bool async) => base.TimeSpan_Seconds(async);
+
+        [ConditionalTheory(Skip = "PR #19774")]
+        public override Task TimeSpan_Milliseconds(bool async) => base.TimeSpan_Milliseconds(async);
+
+        [ConditionalTheory(Skip = "PR #19774")]
+        public override Task Where_TimeSpan_Hours(bool async) => base.Where_TimeSpan_Hours(async);
+
+        [ConditionalTheory(Skip = "PR #19774")]
+        public override Task Where_TimeSpan_Minutes(bool async) => base.Where_TimeSpan_Minutes(async);
+
+        [ConditionalTheory(Skip = "PR #19774")]
+        public override Task Where_TimeSpan_Seconds(bool async) => base.Where_TimeSpan_Seconds(async);
+
+        [ConditionalTheory(Skip = "PR #19774")]
+        public override Task Where_TimeSpan_Milliseconds(bool async) => base.Where_TimeSpan_Milliseconds(async);
 
         private void AssertSql(params string[] expected)
             => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);

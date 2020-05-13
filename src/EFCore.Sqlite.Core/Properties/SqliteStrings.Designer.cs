@@ -42,18 +42,28 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Internal
             => GetString("SequencesNotSupported");
 
         /// <summary>
-        ///     SQLite doesn't support computed columns. For more information, see http://go.microsoft.com/fwlink/?LinkId=723262.
-        /// </summary>
-        public static string ComputedColumnsNotSupported
-            => GetString("ComputedColumnsNotSupported");
-
-        /// <summary>
         ///     SQLite cannot order by expressions of type '{type}'. Convert the values to a supported type or use LINQ to Objects to order the results.
         /// </summary>
         public static string OrderByNotSupported([CanBeNull] object type)
             => string.Format(
                 GetString("OrderByNotSupported", nameof(type)),
                 type);
+
+        /// <summary>
+        ///     '{entityType1}.{property1}' and '{entityType2}.{property2}' are both mapped to column '{columnName}' in '{table}' but are configured with different geometric dimensions.
+        /// </summary>
+        public static string DuplicateColumnNameDimensionMismatch([CanBeNull] object entityType1, [CanBeNull] object property1, [CanBeNull] object entityType2, [CanBeNull] object property2, [CanBeNull] object columnName, [CanBeNull] object table)
+            => string.Format(
+                GetString("DuplicateColumnNameDimensionMismatch", nameof(entityType1), nameof(property1), nameof(entityType2), nameof(property2), nameof(columnName), nameof(table)),
+                entityType1, property1, entityType2, property2, columnName, table);
+
+        /// <summary>
+        ///     '{entityType1}.{property1}' and '{entityType2}.{property2}' are both mapped to column '{columnName}' in '{table}' but are configured with different SRIDs.
+        /// </summary>
+        public static string DuplicateColumnNameSridMismatch([CanBeNull] object entityType1, [CanBeNull] object property1, [CanBeNull] object entityType2, [CanBeNull] object property2, [CanBeNull] object columnName, [CanBeNull] object table)
+            => string.Format(
+                GetString("DuplicateColumnNameSridMismatch", nameof(entityType1), nameof(property1), nameof(entityType2), nameof(property2), nameof(columnName), nameof(table)),
+                entityType1, property1, entityType2, property2, columnName, table);
 
         private static string GetString(string name, params string[] formatterNames)
         {
@@ -367,6 +377,30 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Internal
             }
 
             return (EventDefinition<string, string>)definition;
+        }
+
+        /// <summary>
+        ///     A connection of an unexpected type ({type}) is being used. The SQL functions prefixed with 'ef_' could not be created automatically. Manually define them if you encounter errors while querying.
+        /// </summary>
+        public static EventDefinition<string> LogUnexpectedConnectionType([NotNull] IDiagnosticsLogger logger)
+        {
+            var definition = ((Diagnostics.Internal.SqliteLoggingDefinitions)logger.Definitions).LogUnexpectedConnectionType;
+            if (definition == null)
+            {
+                definition = LazyInitializer.EnsureInitialized<EventDefinitionBase>(
+                    ref ((Diagnostics.Internal.SqliteLoggingDefinitions)logger.Definitions).LogUnexpectedConnectionType,
+                    () => new EventDefinition<string>(
+                        logger.Options,
+                        SqliteEventId.UnexpectedConnectionTypeWarning,
+                        LogLevel.Warning,
+                        "SqliteEventId.UnexpectedConnectionTypeWarning",
+                        level => LoggerMessage.Define<string>(
+                            level,
+                            SqliteEventId.UnexpectedConnectionTypeWarning,
+                            _resourceManager.GetString("LogUnexpectedConnectionType"))));
+            }
+
+            return (EventDefinition<string>)definition;
         }
     }
 }

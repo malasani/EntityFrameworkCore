@@ -49,7 +49,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
         public virtual IClrCollectionAccessor Create([NotNull] INavigation navigation)
-            => !navigation.IsCollection() || navigation.IsShadowProperty() ? null : Create(navigation, navigation.GetTargetType());
+            => !navigation.IsCollection || navigation.IsShadowProperty() ? null : Create(navigation, navigation.TargetEntityType);
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -262,7 +262,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
             where TCollection : class
             where TElement : class
         {
-            var collection = (TCollection)(ICollection<TElement>)new HashSet<TElement>(ReferenceEqualityComparer.Instance);
+            var collection = (TCollection)(ICollection<TElement>)new HashSet<TElement>(LegacyReferenceEqualityComparer.Instance);
             setterDelegate(entity, collection);
             return collection;
         }
@@ -271,7 +271,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         private static TCollection CreateHashSet<TCollection, TElement>()
             where TCollection : class
             where TElement : class
-            => (TCollection)(ICollection<TElement>)new HashSet<TElement>(ReferenceEqualityComparer.Instance);
+            => (TCollection)(ICollection<TElement>)new HashSet<TElement>(LegacyReferenceEqualityComparer.Instance);
 
         [UsedImplicitly]
         private static TCollection CreateAndSetObservableHashSet<TEntity, TCollection, TElement>(
@@ -281,7 +281,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
             where TCollection : class
             where TElement : class
         {
-            var collection = (TCollection)(ICollection<TElement>)new ObservableHashSet<TElement>(ReferenceEqualityComparer.Instance);
+            var collection = (TCollection)(ICollection<TElement>)new ObservableHashSet<TElement>(LegacyReferenceEqualityComparer.Instance);
             setterDelegate(entity, collection);
             return collection;
         }
@@ -290,6 +290,6 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         private static TCollection CreateObservableHashSet<TCollection, TElement>()
             where TCollection : class
             where TElement : class
-            => (TCollection)(ICollection<TElement>)new ObservableHashSet<TElement>(ReferenceEqualityComparer.Instance);
+            => (TCollection)(ICollection<TElement>)new ObservableHashSet<TElement>(LegacyReferenceEqualityComparer.Instance);
     }
 }

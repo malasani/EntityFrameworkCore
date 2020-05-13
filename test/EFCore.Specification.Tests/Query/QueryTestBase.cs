@@ -123,8 +123,8 @@ namespace Microsoft.EntityFrameworkCore.Query
 
         protected Task AssertSingleResult<TResult>(
             bool async,
-            Func<ISetSource, TResult> syncQuery,
-            Func<ISetSource, Task<TResult>> asyncQuery,
+            Expression<Func<ISetSource, TResult>> syncQuery,
+            Expression<Func<ISetSource, Task<TResult>>> asyncQuery,
             Action<TResult, TResult> asserter = null,
             int entryCount = 0,
             [CallerMemberName] string testMethodName = null)
@@ -132,9 +132,9 @@ namespace Microsoft.EntityFrameworkCore.Query
 
         protected Task AssertSingleResult<TResult>(
             bool async,
-            Func<ISetSource, TResult> actualSyncQuery,
-            Func<ISetSource, Task<TResult>> actualAsyncQuery,
-            Func<ISetSource, TResult> expectedQuery,
+            Expression<Func<ISetSource, TResult>> actualSyncQuery,
+            Expression<Func<ISetSource, Task<TResult>>> actualAsyncQuery,
+            Expression<Func<ISetSource, TResult>> expectedQuery,
             Action<TResult, TResult> asserter = null,
             int entryCount = 0,
             [CallerMemberName] string testMethodName = null)
@@ -1102,6 +1102,23 @@ namespace Microsoft.EntityFrameworkCore.Query
             => Fixture.QueryAsserter.AssertAverage(
                 actualQuery, expectedQuery, actualSelector, expectedSelector, asserter, async);
 
+        protected Task AssertContains<TElement>(
+            bool async,
+            Func<ISetSource, IQueryable<TElement>> query,
+            TElement element,
+            Action<bool, bool> asserter = null)
+            => AssertContains(async, query, query, element, element, asserter);
+
+        protected Task AssertContains<TElement>(
+            bool async,
+            Func<ISetSource, IQueryable<TElement>> actualQuery,
+            Func<ISetSource, IQueryable<TElement>> expectedQuery,
+            TElement actualElement,
+            TElement expectedElement,
+            Action<bool, bool> asserter = null)
+            => Fixture.QueryAsserter.AssertContains(
+                actualQuery, expectedQuery, actualElement, expectedElement, asserter, async);
+
         #endregion
 
         #region Helpers
@@ -1130,29 +1147,15 @@ namespace Microsoft.EntityFrameworkCore.Query
             AssertCollection(expected, actual, ordered, elementSorter, elementAsserter);
         }
 
-        protected static TResult Maybe<TResult>(object caller, Func<TResult> expression)
-            where TResult : class
-        {
-            return caller == null ? null : expression();
-        }
-
-        protected static TResult? MaybeScalar<TResult>(object caller, Func<TResult?> expression)
-            where TResult : struct
-        {
-            return caller == null ? null : expression();
-        }
-
-        protected static IEnumerable<TResult> MaybeDefaultIfEmpty<TResult>(IEnumerable<TResult> caller)
-            where TResult : class
-        {
-            return caller == null
-                ? new List<TResult> { default }
-                : caller.DefaultIfEmpty();
-        }
-
         protected static async Task AssertTranslationFailed(Func<Task> query)
             => Assert.Contains(
                 CoreStrings.TranslationFailed("").Substring(21),
+                (await Assert.ThrowsAsync<InvalidOperationException>(query))
+                .Message);
+
+        protected static async Task AssertTranslationFailedWithDetails(Func<Task> query, string details)
+            => Assert.Contains(
+                CoreStrings.TranslationFailedWithDetails("", details).Substring(21),
                 (await Assert.ThrowsAsync<InvalidOperationException>(query))
                 .Message);
 

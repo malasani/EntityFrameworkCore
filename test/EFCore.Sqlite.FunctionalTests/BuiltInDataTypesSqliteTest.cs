@@ -1358,6 +1358,8 @@ namespace Microsoft.EntityFrameworkCore
                     Id = 216,
                     PartitionId = 204,
                     TestDecimal = 3.000000000000003m,
+                    TestDouble = 1.5,
+                    TestSingle = 1.5f,
                     TestUnsignedInt64 = 10000000000000000001
                 });
 
@@ -1369,11 +1371,15 @@ namespace Microsoft.EntityFrameworkCore
                     {
                         Id = e.Id,
                         TestDecimal = e.TestDecimal % 2.000000000000002m,
+                        TestDouble = e.TestDouble % 1.0,
+                        TestSingle = e.TestSingle % 1.0f,
                         TestUnsignedInt64 = e.TestUnsignedInt64 % 10000000000000000000
                     })
                 .First(e => e.Id == 216);
 
             Assert.Equal(1.000000000000001m, result.TestDecimal);
+            Assert.Equal(0.5, result.TestDouble);
+            Assert.Equal(0.5f, result.TestSingle);
             Assert.Equal(1ul, result.TestUnsignedInt64);
         }
 
@@ -1488,6 +1494,16 @@ namespace Microsoft.EntityFrameworkCore
                     .ThenBy(e => e.TestNullableUnsignedInt64)
                     .First());
             Assert.Equal(SqliteStrings.OrderByNotSupported("ulong"), ex.Message);
+        }
+
+        public override void Object_to_string_conversion()
+        {
+            base.Object_to_string_conversion();
+
+            AssertSql(
+                @"SELECT ""b"".""TestSignedByte"", ""b"".""TestByte"", ""b"".""TestInt16"", ""b"".""TestUnsignedInt16"", ""b"".""TestInt32"", ""b"".""TestUnsignedInt32"", ""b"".""TestInt64"", ""b"".""TestUnsignedInt64"", ""b"".""TestSingle"", ""b"".""TestDouble"", ""b"".""TestDecimal"", ""b"".""TestCharacter"", ""b"".""TestDateTime"", ""b"".""TestDateTimeOffset"", ""b"".""TestTimeSpan""
+FROM ""BuiltInDataTypes"" AS ""b""
+WHERE ""b"".""Id"" = 13");
         }
 
         private void AssertTranslationFailed(Action testCode)

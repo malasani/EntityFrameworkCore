@@ -54,13 +54,13 @@ namespace Microsoft.EntityFrameworkCore.Metadata
 
         /// <summary>
         ///     Gets a value indicating whether this relationship is required.
-        ///     If <c>true</c>, the dependent entity must always be assigned to a valid principal entity.
+        ///     If <see langword="true" />, the dependent entity must always be assigned to a valid principal entity.
         /// </summary>
         bool IsRequired { get; }
 
         /// <summary>
         ///     Gets or sets a value indicating whether this relationship defines an ownership.
-        ///     If <c>true</c>, the dependent entity must always be accessed via the navigation from the principal entity.
+        ///     If <see langword="true" />, the dependent entity must always be accessed via the navigation from the principal entity.
         /// </summary>
         bool IsOwnership { get; }
 
@@ -71,11 +71,11 @@ namespace Microsoft.EntityFrameworkCore.Metadata
         DeleteBehavior DeleteBehavior { get; }
 
         /// <summary>
-        ///     Gets all skip navigations using this foreign key.
+        ///     Gets the skip navigations using this foreign key.
         /// </summary>
         /// <returns> The skip navigations using this foreign key. </returns>
         IEnumerable<ISkipNavigation> GetReferencingSkipNavigations()
-            => PrincipalEntityType.GetSkipNavigations().Where(n => n.IsOnPrincipal && n.ForeignKey == this)
-            .Concat(DeclaringEntityType.GetSkipNavigations().Where(n => !n.IsOnPrincipal && n.ForeignKey == this));
+            => PrincipalEntityType.GetSkipNavigations().Where(n => !n.IsOnDependent && n.ForeignKey == this)
+            .Concat(DeclaringEntityType.GetSkipNavigations().Where(n => n.IsOnDependent && n.ForeignKey == this));
     }
 }

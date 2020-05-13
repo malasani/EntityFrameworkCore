@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System.Threading.Tasks;
@@ -407,7 +407,7 @@ WHERE [c].[CustomerID] LIKE N'A%'");
     SELECT TOP(1) (
         SELECT TOP(1) [o].[ProductID]
         FROM [Order Details] AS [o]
-        WHERE ([o0].[OrderID] = [o].[OrderID]) AND (([o].[OrderID] <> CAST(LEN([c].[CustomerID]) AS int)) OR LEN([c].[CustomerID]) IS NULL))
+        WHERE ([o0].[OrderID] = [o].[OrderID]) AND ([o].[OrderID] <> CAST(LEN([c].[CustomerID]) AS int)))
     FROM [Orders] AS [o0]
     WHERE ([c].[CustomerID] = [o0].[CustomerID]) AND ([o0].[OrderID] < 10500)) AS [Order]
 FROM [Customers] AS [c]
@@ -1167,10 +1167,7 @@ CROSS APPLY (
             await base.Select_with_complex_expression_that_can_be_funcletized(async);
 
             AssertSql(
-                @"SELECT CASE
-    WHEN N'' = N'' THEN 0
-    ELSE CAST(CHARINDEX(N'', [c].[ContactName]) AS int) - 1
-END
+                @"SELECT 0
 FROM [Customers] AS [c]
 WHERE [c].[CustomerID] = N'ALFKI'");
         }
@@ -1180,11 +1177,11 @@ WHERE [c].[CustomerID] = N'ALFKI'");
             await base.Select_chained_entity_navigation_doesnt_materialize_intermittent_entities(async);
 
             AssertSql(
-                @"SELECT [o].[OrderID], [o0].[OrderID], [o0].[CustomerID], [o0].[EmployeeID], [o0].[OrderDate]
+                @"SELECT [o].[OrderID], [c].[CustomerID], [o0].[OrderID], [o0].[CustomerID], [o0].[EmployeeID], [o0].[OrderDate]
 FROM [Orders] AS [o]
 LEFT JOIN [Customers] AS [c] ON [o].[CustomerID] = [c].[CustomerID]
 LEFT JOIN [Orders] AS [o0] ON [c].[CustomerID] = [o0].[CustomerID]
-ORDER BY [o].[OrderID], [o0].[OrderID]");
+ORDER BY [o].[OrderID], [c].[CustomerID], [o0].[OrderID]");
         }
 
         public override async Task Select_entity_compared_to_null(bool async)
@@ -1360,6 +1357,51 @@ ORDER BY [e].[EmployeeID] DESC");
             AssertSql(@"SELECT [e].[EmployeeID]
 FROM [Employees] AS [e]
 ORDER BY [e].[EmployeeID]");
+        }
+
+        public override async Task Projection_AsEnumerable_projection(bool async)
+        {
+            await base.Projection_AsEnumerable_projection(async);
+
+            AssertSql(
+                @"SELECT [c].[CustomerID], [t].[OrderID], [t].[CustomerID], [t].[EmployeeID], [t].[OrderDate]
+FROM [Customers] AS [c]
+LEFT JOIN (
+    SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
+    FROM [Orders] AS [o]
+    WHERE [o].[OrderID] < 10750
+) AS [t] ON [c].[CustomerID] = [t].[CustomerID]
+WHERE ([c].[CustomerID] LIKE N'A%') AND ((
+    SELECT COUNT(*)
+    FROM [Orders] AS [o0]
+    WHERE ([o0].[CustomerID] = [c].[CustomerID]) AND ([o0].[OrderID] < 11000)) > 0)
+ORDER BY [c].[CustomerID], [t].[OrderID]");
+        }
+
+        public override async Task Projection_custom_type_in_both_sides_of_ternary(bool async)
+        {
+            await base.Projection_custom_type_in_both_sides_of_ternary(async);
+
+            AssertSql(
+                @"SELECT CASE
+    WHEN ([c].[City] = N'Seattle') AND [c].[City] IS NOT NULL THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+FROM [Customers] AS [c]
+ORDER BY [c].[CustomerID]");
+        }
+
+        public override async Task Projecting_multiple_collection_with_same_constant_works(bool async)
+        {
+            await base.Projecting_multiple_collection_with_same_constant_works(async);
+
+            AssertSql(
+                @"SELECT [c].[CustomerID], 1, [o].[OrderID], [o0].[OrderID]
+FROM [Customers] AS [c]
+LEFT JOIN [Orders] AS [o] ON [c].[CustomerID] = [o].[CustomerID]
+LEFT JOIN [Orders] AS [o0] ON [c].[CustomerID] = [o0].[CustomerID]
+WHERE [c].[CustomerID] = N'ALFKI'
+ORDER BY [c].[CustomerID], [o].[OrderID], [o0].[OrderID]");
         }
 
         private void AssertSql(params string[] expected)

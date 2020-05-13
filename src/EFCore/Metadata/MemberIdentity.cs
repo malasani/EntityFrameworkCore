@@ -7,12 +7,16 @@ using JetBrains.Annotations;
 
 namespace Microsoft.EntityFrameworkCore.Metadata
 {
+    /// <summary>
+    ///     Represents the identity of an entity type member, can be based on <see cref="MemberInfo"/> or just the name.
+    /// </summary>
     [DebuggerDisplay("{DebuggerDisplay(),nq}")]
     public readonly struct MemberIdentity
     {
         private readonly object _nameOrMember;
 
         [DebuggerStepThrough]
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member See issue#20837
         public MemberIdentity([NotNull] string name)
             : this((object)name)
         {
@@ -54,5 +58,6 @@ namespace Microsoft.EntityFrameworkCore.Metadata
 
         private string DebuggerDisplay()
             => Name ?? "NONE";
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
     }
 }

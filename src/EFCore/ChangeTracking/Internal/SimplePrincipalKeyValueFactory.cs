@@ -4,11 +4,11 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.Update;
 
 namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal
 {
@@ -34,9 +34,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal
             _property = property;
             _propertyAccessors = _property.GetPropertyAccessors();
 
-            var comparer = property.GetKeyValueComparer()
-                ?? property.GetValueComparer()
-                ?? property.FindTypeMapping()?.KeyComparer;
+            var comparer = property.GetKeyValueComparer();
 
             EqualityComparer
                 = comparer != null
@@ -79,7 +77,16 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public virtual IProperty FindNullPropertyInValueBuffer(ValueBuffer valueBuffer)
+        public virtual TKey CreateFromCurrentValues(IUpdateEntry entry)
+            => ((Func<IUpdateEntry, TKey>)_propertyAccessors.CurrentValueGetter)(entry);
+
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
+        public virtual IProperty FindNullPropertyInCurrentValues(IUpdateEntry entry)
             => _property;
 
         /// <summary>
@@ -88,8 +95,8 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public virtual TKey CreateFromCurrentValues(InternalEntityEntry entry)
-            => ((Func<InternalEntityEntry, TKey>)_propertyAccessors.CurrentValueGetter)(entry);
+        public virtual TKey CreateFromOriginalValues(IUpdateEntry entry)
+            => ((Func<IUpdateEntry, TKey>)_propertyAccessors.OriginalValueGetter)(entry);
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -97,26 +104,8 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public virtual IProperty FindNullPropertyInCurrentValues(InternalEntityEntry entry)
-            => _property;
-
-        /// <summary>
-        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-        ///     any release. You should only use it directly in your code with extreme caution and knowing that
-        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-        /// </summary>
-        public virtual TKey CreateFromOriginalValues(InternalEntityEntry entry)
-            => ((Func<InternalEntityEntry, TKey>)_propertyAccessors.OriginalValueGetter)(entry);
-
-        /// <summary>
-        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-        ///     any release. You should only use it directly in your code with extreme caution and knowing that
-        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-        /// </summary>
-        public virtual TKey CreateFromRelationshipSnapshot(InternalEntityEntry entry)
-            => ((Func<InternalEntityEntry, TKey>)_propertyAccessors.RelationshipSnapshotGetter)(entry);
+        public virtual TKey CreateFromRelationshipSnapshot(IUpdateEntry entry)
+            => ((Func<IUpdateEntry, TKey>)_propertyAccessors.RelationshipSnapshotGetter)(entry);
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to

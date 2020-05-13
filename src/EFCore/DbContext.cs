@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
@@ -15,7 +16,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.EntityFrameworkCore.Query.Internal;
+using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -52,7 +53,7 @@ namespace Microsoft.EntityFrameworkCore
         IDbSetCache,
         IDbContextPoolable
     {
-        private IDictionary<Type, object> _sets;
+        private IDictionary<(Type Type, string Name), object> _sets;
         private readonly DbContextOptions _options;
 
         private IDbContextServices _contextServices;
@@ -237,13 +238,38 @@ namespace Microsoft.EntityFrameworkCore
 
             if (_sets == null)
             {
-                _sets = new Dictionary<Type, object>();
+                _sets = new Dictionary<(Type Type, string Name), object>();
             }
 
-            if (!_sets.TryGetValue(type, out var set))
+            if (!_sets.TryGetValue((type, null), out var set))
             {
                 set = source.Create(this, type);
-                _sets[type] = set;
+                _sets[(type, null)] = set;
+            }
+
+            return set;
+        }
+
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
+        [EntityFrameworkInternal]
+        object IDbSetCache.GetOrAddSet(IDbSetSource source, string entityTypeName, Type type)
+        {
+            CheckDisposed();
+
+            if (_sets == null)
+            {
+                _sets = new Dictionary<(Type Type, string Name), object>();
+            }
+
+            if (!_sets.TryGetValue((type, entityTypeName), out var set))
+            {
+                set = source.Create(this, entityTypeName, type);
+                _sets[(type, entityTypeName)] = set;
             }
 
             return set;
@@ -257,6 +283,15 @@ namespace Microsoft.EntityFrameworkCore
         public virtual DbSet<TEntity> Set<TEntity>()
             where TEntity : class
             => (DbSet<TEntity>)((IDbSetCache)this).GetOrAddSet(DbContextDependencies.SetSource, typeof(TEntity));
+
+        /// <summary>
+        ///     Creates a <see cref="DbSet{TEntity}" /> that can be used to query and save instances of <typeparamref name="TEntity" />.
+        /// </summary>
+        /// <typeparam name="TEntity"> The type of entity for which a set should be returned. </typeparam>
+        /// <returns> A set for the given entity type. </returns>
+        public virtual DbSet<TEntity> Set<TEntity>([NotNull] string name)
+            where TEntity : class
+            => (DbSet<TEntity>)((IDbSetCache)this).GetOrAddSet(DbContextDependencies.SetSource, name, typeof(TEntity));
 
         private IEntityFinder Finder(Type type)
         {
@@ -586,6 +621,7 @@ namespace Microsoft.EntityFrameworkCore
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
+        [EntityFrameworkInternal]
         void IDbContextPoolable.SetPool(IDbContextPool contextPool)
         {
             _dbContextPool = contextPool;
@@ -598,6 +634,7 @@ namespace Microsoft.EntityFrameworkCore
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
+        [EntityFrameworkInternal]
         DbContextPoolConfigurationSnapshot IDbContextPoolable.SnapshotConfiguration()
             => new DbContextPoolConfigurationSnapshot(
                 _changeTracker?.AutoDetectChangesEnabled,
@@ -613,6 +650,7 @@ namespace Microsoft.EntityFrameworkCore
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
+        [EntityFrameworkInternal]
         void IDbContextPoolable.Resurrect(DbContextPoolConfigurationSnapshot configurationSnapshot)
         {
             _disposed = false;
@@ -650,6 +688,7 @@ namespace Microsoft.EntityFrameworkCore
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
+        [EntityFrameworkInternal]
         void IResettableService.ResetState()
         {
             foreach (var service in GetResettableServices())
@@ -667,6 +706,7 @@ namespace Microsoft.EntityFrameworkCore
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
         /// <param name="cancellationToken"> A <see cref="CancellationToken" /> to observe while waiting for the task to complete. </param>
+        [EntityFrameworkInternal]
         async Task IResettableService.ResetStateAsync(CancellationToken cancellationToken)
         {
             foreach (var service in GetResettableServices())
@@ -1655,6 +1695,22 @@ namespace Microsoft.EntityFrameworkCore
         ///     </para>
         /// </summary>
         IServiceProvider IInfrastructure<IServiceProvider>.Instance => InternalServiceProvider;
+
+        /// <summary>
+        /// Creates a query expression, which represents a function call, against the query store.
+        /// </summary>
+        /// <typeparam name="TResult"> The result type of the query expression </typeparam>
+        /// <param name="expression"> The query expression to create. </param>
+        /// <returns> An IQueryable representing the query. </returns>
+        protected virtual IQueryable<TResult> CreateQuery<TResult>([NotNull] Expression<Func<IQueryable<TResult>>> expression)
+        {
+            //should we add this method as an extension in relational?  That would require making DbContextDependencies public.
+            //Is there a 3rd way?
+
+            Check.NotNull(expression, nameof(expression));
+
+            return DbContextDependencies.QueryProvider.CreateQuery<TResult>(expression.Body);
+        }
 
         #region Hidden System.Object members
 

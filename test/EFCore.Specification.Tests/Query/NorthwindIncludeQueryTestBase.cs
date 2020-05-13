@@ -124,7 +124,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 Expression.Parameter(typeof(Order), "o"));
 
             Assert.Equal(
-                CoreStrings.InvalidIncludeLambdaExpression("Include", lambdaExpression.ToString()),
+                CoreStrings.InvalidIncludeExpression(lambdaExpression.Body.ToString()),
                 Assert.Throws<InvalidOperationException>(
                     () =>
                     {
@@ -196,7 +196,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 Expression.Parameter(typeof(Order), "o"));
 
             Assert.Equal(
-                CoreStrings.InvalidIncludeLambdaExpression("ThenInclude", lambdaExpression.ToString()),
+                CoreStrings.InvalidIncludeExpression(lambdaExpression.Body.ToString()),
                 Assert.Throws<InvalidOperationException>(
                     () =>
                     {
@@ -334,8 +334,8 @@ namespace Microsoft.EntityFrameworkCore.Query
         public virtual void Include_collection_with_last_no_orderby(bool useString)
         {
             using var context = CreateContext();
-            Assert.Contains(
-                CoreStrings.TranslationFailed("").Substring(21),
+            Assert.Equal(
+                CoreStrings.LastUsedWithoutOrderBy(nameof(Enumerable.Last)),
                 Assert.Throws<InvalidOperationException>(
                     () => useString
                         ? context.Set<Customer>().Include("Orders").Last()
@@ -606,7 +606,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                         .Include(c => c.Orders)
                         .Single(c => c.CustomerID == "ALFKI");
 
-            Assert.Equal(orders, customer.Orders, ReferenceEqualityComparer.Instance);
+            Assert.Equal(orders, customer.Orders, LegacyReferenceEqualityComparer.Instance);
             Assert.Equal(6, customer.Orders.Count);
             Assert.True(customer.Orders.All(o => o.Customer != null));
             Assert.Equal(6 + 1, context.ChangeTracker.Entries().Count());
@@ -643,7 +643,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                         .AsNoTracking()
                         .Single(c => c.CustomerID == "ALFKI");
 
-            Assert.NotEqual(orders, customer.Orders, ReferenceEqualityComparer.Instance);
+            Assert.NotEqual(orders, customer.Orders, LegacyReferenceEqualityComparer.Instance);
             Assert.Equal(6, customer.Orders.Count);
             Assert.True(customer.Orders.All(o => o.Customer != null));
             Assert.Equal(6, context.ChangeTracker.Entries().Count());
@@ -826,26 +826,170 @@ namespace Microsoft.EntityFrameworkCore.Query
         [ConditionalTheory]
         [InlineData(false)]
         [InlineData(true)]
-        public virtual void Include_collection_on_join_clause_with_filter(bool useString)
+        public virtual void Include_collection_with_join_clause_with_filter(bool useString)
         {
             using var context = CreateContext();
             var customers
                 = useString
                     ? (from c in context.Set<Customer>().Include("Orders")
                        join o in context.Set<Order>() on c.CustomerID equals o.CustomerID
-                       where c.CustomerID == "ALFKI"
+                       where c.CustomerID.StartsWith("F")
                        select c)
                     .ToList()
                     : (from c in context.Set<Customer>().Include(c => c.Orders)
                        join o in context.Set<Order>() on c.CustomerID equals o.CustomerID
-                       where c.CustomerID == "ALFKI"
+                       where c.CustomerID.StartsWith("F")
                        select c)
                     .ToList();
 
-            Assert.Equal(6, customers.Count);
-            Assert.Equal(36, customers.SelectMany(c => c.Orders).Count());
+            Assert.Equal(63, customers.Count);
+            Assert.Equal(769, customers.SelectMany(c => c.Orders).Count());
             Assert.True(customers.SelectMany(c => c.Orders).All(o => o.Customer != null));
-            Assert.Equal(1 + 6, context.ChangeTracker.Entries().Count());
+            Assert.Equal(7 + 63, context.ChangeTracker.Entries().Count());
+
+            foreach (var customer in customers)
+            {
+                CheckIsLoaded(
+                    context,
+                    customer,
+                    ordersLoaded: true,
+                    orderDetailsLoaded: false,
+                    productLoaded: false);
+            }
+        }
+
+        [ConditionalTheory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public virtual void Include_collection_with_left_join_clause_with_filter(bool useString)
+        {
+            using var context = CreateContext();
+            var customers
+                = useString
+                    ? (from c in context.Set<Customer>().Include("Orders")
+                       join o in context.Set<Order>() on c.CustomerID equals o.CustomerID into grouping
+                       from o in grouping.DefaultIfEmpty()
+                       where c.CustomerID.StartsWith("F")
+                       select c)
+                    .ToList()
+                    : (from c in context.Set<Customer>().Include(c => c.Orders)
+                       join o in context.Set<Order>() on c.CustomerID equals o.CustomerID into grouping
+                       from o in grouping.DefaultIfEmpty()
+                       where c.CustomerID.StartsWith("F")
+                       select c)
+                    .ToList();
+
+            Assert.Equal(64, customers.Count);
+            Assert.Equal(769, customers.SelectMany(c => c.Orders).Count());
+            Assert.True(customers.SelectMany(c => c.Orders).All(o => o.Customer != null));
+            Assert.Equal(8 + 63, context.ChangeTracker.Entries().Count());
+
+            foreach (var customer in customers)
+            {
+                CheckIsLoaded(
+                    context,
+                    customer,
+                    ordersLoaded: true,
+                    orderDetailsLoaded: false,
+                    productLoaded: false);
+            }
+        }
+
+        [ConditionalTheory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public virtual void Include_collection_with_cross_join_clause_with_filter(bool useString)
+        {
+            using var context = CreateContext();
+            var customers
+                = useString
+                    ? (from c in context.Set<Customer>().Include("Orders")
+                       from o in context.Set<Order>().OrderBy(o => o.OrderID).Take(5)
+                       where c.CustomerID.StartsWith("F")
+                       select c)
+                    .ToList()
+                    : (from c in context.Set<Customer>().Include(c => c.Orders)
+                       from o in context.Set<Order>().OrderBy(o => o.OrderID).Take(5)
+                       where c.CustomerID.StartsWith("F")
+                       select c)
+                    .ToList();
+
+            Assert.Equal(40, customers.Count);
+            Assert.Equal(315, customers.SelectMany(c => c.Orders).Count());
+            Assert.True(customers.SelectMany(c => c.Orders).All(o => o.Customer != null));
+            Assert.Equal(8 + 63, context.ChangeTracker.Entries().Count());
+
+            foreach (var customer in customers)
+            {
+                CheckIsLoaded(
+                    context,
+                    customer,
+                    ordersLoaded: true,
+                    orderDetailsLoaded: false,
+                    productLoaded: false);
+            }
+        }
+
+        [ConditionalTheory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public virtual void Include_collection_with_cross_apply_with_filter(bool useString)
+        {
+            using var context = CreateContext();
+            var customers
+                = useString
+                    ? (from c in context.Set<Customer>().Include("Orders")
+                       from o in context.Set<Order>().Where(o => o.CustomerID == c.CustomerID).OrderBy(o => c.CustomerID).Take(5)
+                       where c.CustomerID.StartsWith("F")
+                       select c)
+                    .ToList()
+                    : (from c in context.Set<Customer>().Include(c => c.Orders)
+                       from o in context.Set<Order>().Where(o => o.CustomerID == c.CustomerID).OrderBy(o => c.CustomerID).Take(5)
+                       where c.CustomerID.StartsWith("F")
+                       select c)
+                    .ToList();
+
+            Assert.Equal(33, customers.Count);
+            Assert.Equal(309, customers.SelectMany(c => c.Orders).Count());
+            Assert.True(customers.SelectMany(c => c.Orders).All(o => o.Customer != null));
+            Assert.Equal(7 + 63, context.ChangeTracker.Entries().Count());
+
+            foreach (var customer in customers)
+            {
+                CheckIsLoaded(
+                    context,
+                    customer,
+                    ordersLoaded: true,
+                    orderDetailsLoaded: false,
+                    productLoaded: false);
+            }
+        }
+
+        [ConditionalTheory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public virtual void Include_collection_with_outer_apply_with_filter(bool useString)
+        {
+            using var context = CreateContext();
+            var customers
+                = useString
+                    ? (from c in context.Set<Customer>().Include("Orders")
+                       from o in context.Set<Order>().Where(o => o.CustomerID == c.CustomerID)
+                            .OrderBy(o => c.CustomerID).Take(5).DefaultIfEmpty()
+                       where c.CustomerID.StartsWith("F")
+                       select c)
+                    .ToList()
+                    : (from c in context.Set<Customer>().Include(c => c.Orders)
+                       from o in context.Set<Order>().Where(o => o.CustomerID == c.CustomerID)
+                            .OrderBy(o => c.CustomerID).Take(5).DefaultIfEmpty()
+                       where c.CustomerID.StartsWith("F")
+                       select c)
+                    .ToList();
+
+            Assert.Equal(34, customers.Count);
+            Assert.Equal(309, customers.SelectMany(c => c.Orders).Count());
+            Assert.True(customers.SelectMany(c => c.Orders).All(o => o.Customer != null));
+            Assert.Equal(8 + 63, context.ChangeTracker.Entries().Count());
 
             foreach (var customer in customers)
             {
@@ -1668,7 +1812,9 @@ namespace Microsoft.EntityFrameworkCore.Query
         {
             using var context = CreateContext();
             Assert.Contains(
-                CoreStrings.TranslationFailed("").Substring(21),
+                CoreStrings.TranslationFailedWithDetails(
+                    "",
+                    CoreStrings.QueryUnableToTranslateMember(nameof(Customer.IsLondon), nameof(Customer))).Substring(21),
                 Assert.Throws<InvalidOperationException>(
                     () => useString
                         ? context.Set<Customer>()
@@ -2080,7 +2226,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                         .Include(o => o.Customer)
                         .ToList();
 
-            Assert.True(orders1.All(o1 => orders2.Contains(o1, ReferenceEqualityComparer.Instance)));
+            Assert.True(orders1.All(o1 => orders2.Contains(o1, LegacyReferenceEqualityComparer.Instance)));
             Assert.True(orders2.All(o => o.Customer != null));
             Assert.Equal(830 + 89, context.ChangeTracker.Entries().Count());
 
@@ -3517,6 +3663,129 @@ namespace Microsoft.EntityFrameworkCore.Query
 
         private static string ClientMethod(Employee e)
             => e.FirstName + " reports to " + e.Manager.FirstName + e.Manager.LastName;
+
+        // Issue#18672
+        [ConditionalTheory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public virtual async Task Multi_level_includes_are_applied_with_skip(bool useString, bool async)
+        {
+            using var context = CreateContext();
+            var query = (from c in (useString
+                            ? context.Customers.Include("Orders.OrderDetails")
+                            : context.Customers.Include(e => e.Orders).ThenInclude(e => e.OrderDetails))
+                         where c.CustomerID.StartsWith("A")
+                         orderby c.CustomerID
+                         select new { c.CustomerID, Orders = c.Orders.ToList() })
+                        .Skip(1);
+
+            var result = async
+                ? await query.FirstAsync()
+                : query.First();
+
+            Assert.Equal("ANATR", result.CustomerID);
+            Assert.Equal(2, result.Orders.First().OrderDetails.Count);
+        }
+
+        [ConditionalTheory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public virtual async Task Multi_level_includes_are_applied_with_take(bool useString, bool async)
+        {
+            using var context = CreateContext();
+            var query = (from c in (useString
+                            ? context.Customers.Include("Orders.OrderDetails")
+                            : context.Customers.Include(e => e.Orders).ThenInclude(e => e.OrderDetails))
+                         where c.CustomerID.StartsWith("A")
+                         orderby c.CustomerID
+                         select new { c.CustomerID, Orders = c.Orders.ToList() })
+                        .Take(1);
+
+            var result = async
+                ? await query.FirstAsync()
+                : query.First();
+
+            Assert.Equal("ALFKI", result.CustomerID);
+            Assert.Equal(3, result.Orders.First().OrderDetails.Count);
+        }
+
+        [ConditionalTheory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public virtual async Task Multi_level_includes_are_applied_with_skip_take(bool useString, bool async)
+        {
+            using var context = CreateContext();
+            var query = (from c in (useString
+                            ? context.Customers.Include("Orders.OrderDetails")
+                            : context.Customers.Include(e => e.Orders).ThenInclude(e => e.OrderDetails))
+                         where c.CustomerID.StartsWith("A")
+                         orderby c.CustomerID
+                         select new { c.CustomerID, Orders = c.Orders.ToList() })
+                        .Skip(1)
+                        .Take(1);
+
+            var result = async
+                ? await query.FirstAsync()
+                : query.First();
+
+            Assert.Equal("ANATR", result.CustomerID);
+            Assert.Equal(2, result.Orders.First().OrderDetails.Count);
+        }
+
+        [ConditionalTheory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public virtual async Task NoTracking_Include_with_cycles_throws(bool useString, bool async)
+        {
+            using var context = CreateContext();
+            var query = (from o in (useString
+                                    ? context.Orders.Include("Customer.Orders")
+                                    : context.Orders.Include(o => o.Customer.Orders))
+                         where o.OrderID < 10800
+                         select o)
+                        .AsNoTracking();
+
+            Assert.Equal(
+                CoreStrings.IncludeWithCycle("Customer", "Orders"),
+                async
+                ? (await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToListAsync())).Message
+                : Assert.Throws<InvalidOperationException>(() => query.ToList()).Message);
+        }
+
+        [ConditionalTheory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public virtual async Task NoTracking_Include_with_cycles_does_not_throw_when_performing_identity_resolution(bool useString, bool async)
+        {
+            using var context = CreateContext();
+            var query = (from o in (useString
+                                    ? context.Orders.Include("Customer.Orders")
+                                    : context.Orders.Include(o => o.Customer.Orders))
+                         where o.OrderID < 10800
+                         select o)
+                         .PerformIdentityResolution();
+
+            var result = async
+                ? await query.ToListAsync()
+                : query.ToList();
+
+            Assert.Empty(context.ChangeTracker.Entries());
+            foreach (var order in result)
+            {
+                Assert.NotNull(order.Customer);
+                Assert.Same(order, order.Customer.Orders.First(o => o.OrderID == order.OrderID));
+            }
+        }
 
         private static void CheckIsLoaded(
             NorthwindContext context,

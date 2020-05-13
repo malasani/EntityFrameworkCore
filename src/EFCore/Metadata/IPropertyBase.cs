@@ -4,6 +4,7 @@
 using System;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Metadata
 {
@@ -29,14 +30,25 @@ namespace Microsoft.EntityFrameworkCore.Metadata
 
         /// <summary>
         ///     Gets the <see cref="PropertyInfo" /> for the underlying CLR property for this property-like object.
-        ///     This may be <c>null</c> for shadow properties or if mapped directly to a field.
+        ///     This may be <see langword="null" /> for shadow properties or if mapped directly to a field.
         /// </summary>
         PropertyInfo PropertyInfo { get; }
 
         /// <summary>
         ///     Gets the <see cref="FieldInfo" /> for the underlying CLR field for this property-like object.
-        ///     This may be <c>null</c> for shadow properties or if the backing field is not known.
+        ///     This may be <see langword="null" /> for shadow properties or if the backing field is not known.
         /// </summary>
         FieldInfo FieldInfo { get; }
+
+        /// <summary>
+        ///     <para>
+        ///         Gets the <see cref="PropertyAccessMode" /> being used for this property.
+        ///         <see langword="null" /> indicates that the default property access mode is being used.
+        ///     </para>
+        /// </summary>
+        /// <returns> The access mode being used, or <see langword="null" /> if the default access mode is being used. </returns>
+        PropertyAccessMode GetPropertyAccessMode()
+            => (PropertyAccessMode)(this[CoreAnnotationNames.PropertyAccessMode]
+                ?? PropertyAccessMode.PreferField);
     }
 }

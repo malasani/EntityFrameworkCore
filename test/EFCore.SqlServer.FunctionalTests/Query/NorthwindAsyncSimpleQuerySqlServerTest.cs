@@ -4,8 +4,6 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 using Microsoft.EntityFrameworkCore.TestUtilities;
 using Xunit;
@@ -28,18 +26,6 @@ namespace Microsoft.EntityFrameworkCore.Query
 
         [ConditionalFact(Skip = "Issue#16314")]
         public override Task Throws_on_concurrent_query_list()
-        {
-            return Task.CompletedTask;
-        }
-
-        [ConditionalFact(Skip = "Issue#16314")]
-        public override Task Concat_non_entity()
-        {
-            return Task.CompletedTask;
-        }
-
-        [ConditionalFact(Skip = "Issue#16314")]
-        public override Task Concat_simple()
         {
             return Task.CompletedTask;
         }

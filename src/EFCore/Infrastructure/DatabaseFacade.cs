@@ -8,7 +8,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
-using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.Utilities;
 
@@ -117,7 +116,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
         ///         up-to-date with regard to schema creation, etc.
         ///     </para>
         /// </summary>
-        /// <returns> <c>True</c> if the database is available; <c>false</c> otherwise. </returns>
+        /// <returns> <see langword="true" /> if the database is available; <see langword="false" /> otherwise. </returns>
         public virtual bool CanConnect()
             => Dependencies.DatabaseCreator.CanConnect();
 
@@ -131,7 +130,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
         ///     </para>
         /// </summary>
         /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
-        /// <returns> <c>True</c> if the database is available; <c>false</c> otherwise. </returns>
+        /// <returns> <see langword="true" /> if the database is available; <see langword="false" /> otherwise. </returns>
         public virtual Task<bool> CanConnectAsync(CancellationToken cancellationToken = default)
             => Dependencies.DatabaseCreator.CanConnectAsync(cancellationToken);
 
@@ -162,10 +161,93 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
             => Dependencies.TransactionManager.CommitTransaction();
 
         /// <summary>
+        ///     Applies the outstanding operations in the current transaction to the database.
+        /// </summary>
+        /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
+        /// <returns> A Task representing the asynchronous operation. </returns>
+        public virtual Task CommitTransactionAsync(CancellationToken cancellationToken = default)
+            => Dependencies.TransactionManager.CommitTransactionAsync(cancellationToken);
+
+        /// <summary>
         ///     Discards the outstanding operations in the current transaction.
         /// </summary>
         public virtual void RollbackTransaction()
             => Dependencies.TransactionManager.RollbackTransaction();
+
+        /// <summary>
+        ///     Applies the outstanding operations in the current transaction to the database.
+        /// </summary>
+        /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
+        /// <returns> A Task representing the asynchronous operation. </returns>
+        public virtual Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
+            => Dependencies.TransactionManager.RollbackTransactionAsync(cancellationToken);
+
+        /// <summary>
+        ///     Creates a savepoint in the transaction. This allows all commands that are executed after the savepoint
+        ///     was established to be rolled back, restoring the transaction state to what it was at the time of the
+        ///     savepoint.
+        /// </summary>
+        /// <param name="savepointName"> The name of the savepoint to be created. </param>
+        public virtual void CreateSavepoint([NotNull] string savepointName)
+            => Dependencies.TransactionManager.CreateSavepoint(savepointName);
+
+        /// <summary>
+        ///     Creates a savepoint in the transaction. This allows all commands that are executed after the savepoint
+        ///     was established to be rolled back, restoring the transaction state to what it was at the time of the
+        ///     savepoint.
+        /// </summary>
+        /// <param name="savepointName"> The name of the savepoint to be created. </param>
+        /// <param name="cancellationToken"> The cancellation token. </param>
+        /// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
+        public virtual Task CreateSavepointAsync([NotNull] string savepointName, CancellationToken cancellationToken = default)
+            => Dependencies.TransactionManager.CreateSavepointAsync(savepointName, cancellationToken);
+
+        /// <summary>
+        ///     Rolls back all commands that were executed after the specified savepoint was established.
+        /// </summary>
+        /// <param name="savepointName"> The name of the savepoint to roll back to. </param>
+        public virtual void RollbackSavepoint([NotNull] string savepointName)
+            => Dependencies.TransactionManager.RollbackSavepoint(savepointName);
+
+        /// <summary>
+        ///     Rolls back all commands that were executed after the specified savepoint was established.
+        /// </summary>
+        /// <param name="savepointName"> The name of the savepoint to roll back to. </param>
+        /// <param name="cancellationToken"> The cancellation token. </param>
+        /// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
+        public virtual Task RollbackSavepointAsync([NotNull] string savepointName, CancellationToken cancellationToken = default)
+            => Dependencies.TransactionManager.RollbackSavepointAsync(savepointName, cancellationToken);
+
+        /// <summary>
+        ///     Destroys a savepoint previously defined in the current transaction. This allows the system to
+        ///     reclaim some resources before the transaction ends.
+        /// </summary>
+        /// <param name="savepointName"> The name of the savepoint to release. </param>
+        public virtual void ReleaseSavepoint([NotNull] string savepointName)
+            => Dependencies.TransactionManager.ReleaseSavepoint(savepointName);
+
+        /// <summary>
+        ///     Destroys a savepoint previously defined in the current transaction. This allows the system to
+        ///     reclaim some resources before the transaction ends.
+        /// </summary>
+        /// <param name="savepointName"> The name of the savepoint to release. </param>
+        /// <param name="cancellationToken"> The cancellation token. </param>
+        /// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
+        public virtual Task ReleaseSavepointAsync([NotNull] string savepointName, CancellationToken cancellationToken = default)
+            => Dependencies.TransactionManager.ReleaseSavepointAsync(savepointName, cancellationToken);
+
+        /// <summary>
+        ///     Gets a value that indicates whether this <see cref="DatabaseFacade"/> instance supports
+        ///     database savepoints. If <see langword="false" />, the methods <see cref="CreateSavepointAsync"/>,
+        ///     <see cref="RollbackSavepointAsync"/>
+        ///     and <see cref="ReleaseSavepointAsync"/> as well as their synchronous counterparts are expected to throw
+        ///     <see cref="NotSupportedException"/>.
+        /// </summary>
+        /// <returns>
+        ///     <see langword="true" /> if this <see cref="DatabaseFacade"/> instance supports database savepoints;
+        ///     otherwise, <see langword="false" />.
+        /// </returns>
+        public virtual bool AreSavepointsSupported => Dependencies.TransactionManager.AreSavepointsSupported;
 
         /// <summary>
         ///     Creates an instance of the configured <see cref="IExecutionStrategy" />.
@@ -251,6 +333,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
+        [EntityFrameworkInternal]
         IDatabaseFacadeDependencies IDatabaseFacadeDependenciesAccessor.Dependencies
             => Dependencies;
 
@@ -260,6 +343,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
+        [EntityFrameworkInternal]
         DbContext IDatabaseFacadeDependenciesAccessor.Context
             => _context;
 

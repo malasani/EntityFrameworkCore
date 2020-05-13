@@ -20,10 +20,7 @@ using Xunit;
 // ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore.Query
 {
-    // Issue #15751
-#pragma warning disable xUnit1000 // Test classes must be public
-    internal class BadDataSqliteTest : IClassFixture<BadDataSqliteTest.BadDataSqliteFixture>
-#pragma warning restore xUnit1000 // Test classes must be public
+    public class BadDataSqliteTest : IClassFixture<BadDataSqliteTest.BadDataSqliteFixture>
     {
         public BadDataSqliteTest(BadDataSqliteFixture fixture) => Fixture = fixture;
 
@@ -67,7 +64,7 @@ namespace Microsoft.EntityFrameworkCore.Query
         {
             using var context = CreateContext(1);
             Assert.Equal(
-                CoreStrings.ErrorMaterializingPropertyInvalidCast("Product", "ProductName", typeof(string), typeof(int)),
+                CoreStrings.ErrorMaterializingValueInvalidCast(typeof(string), typeof(int)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
                         context.Set<Product>().Where(p => p.ProductID != 4)
@@ -105,7 +102,7 @@ namespace Microsoft.EntityFrameworkCore.Query
         {
             using var context = CreateContext(new object[] { null });
             Assert.Equal(
-                CoreStrings.ErrorMaterializingPropertyNullReference("Product", "Discontinued", typeof(bool)),
+                CoreStrings.ErrorMaterializingValueNullReference(typeof(bool)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
                         context.Set<Product>()
@@ -348,13 +345,13 @@ namespace Microsoft.EntityFrameworkCore.Query
             public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default) =>
                 throw new NotImplementedException();
 
-            public void CommitTransaction()
-            {
-            }
+            public void CommitTransaction() { }
+            public Task CommitTransactionAsync(CancellationToken cancellationToken = default)
+                => Task.CompletedTask;
 
-            public void RollbackTransaction()
-            {
-            }
+            public void RollbackTransaction() { }
+            public Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
+                => Task.CompletedTask;
 
             public IDbContextTransaction CurrentTransaction => throw new NotImplementedException();
             public SemaphoreSlim Semaphore { get; }

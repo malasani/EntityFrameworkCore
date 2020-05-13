@@ -7,9 +7,8 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 using JetBrains.Annotations;
+using Microsoft.EntityFrameworkCore.Cosmos.Internal;
 using Microsoft.EntityFrameworkCore.Cosmos.Storage.Internal;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.Utilities;
 using Newtonsoft.Json;
@@ -60,10 +59,7 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
             // Unary
             { ExpressionType.UnaryPlus, "+" },
             { ExpressionType.Negate, "-" },
-            { ExpressionType.Not, "~" },
-
-            // Others
-            { ExpressionType.Coalesce, " ?? " }
+            { ExpressionType.Not, "~" }
         };
 
         /// <summary>
@@ -247,7 +243,8 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
                 }
                 else
                 {
-                    throw new InvalidOperationException(CoreStrings.QueryFailed(selectExpression.Print(), GetType().Name));
+                    // TODO: See Issue#18923
+                    throw new InvalidOperationException(CosmosStrings.OffsetRequiresLimit);
                 }
             }
 
@@ -366,6 +363,8 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
 
         private JToken GenerateJToken(object value, CoreTypeMapping typeMapping)
         {
+            value = ConvertUnderlyingEnumValueToEnum(value, typeMapping.ClrType);
+
             var converter = typeMapping.Converter;
             if (converter != null)
             {
@@ -379,6 +378,15 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
 
             return (value as JToken) ?? JToken.FromObject(value, CosmosClientWrapper.Serializer);
         }
+
+        // Enum when compared to constant will always have value of integral type
+        // when enum would contain convert node. We remove the convert node but we also
+        // need to convert the integral value to enum value.
+        // This allows us to use converter on enum value or print enum value directly if supported by provider
+        private object ConvertUnderlyingEnumValueToEnum(object value, Type clrType)
+            => value?.GetType().IsInteger() == true && clrType.UnwrapNullableType().IsEnum
+            ? Enum.ToObject(clrType.UnwrapNullableType(), value)
+            : value;
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to

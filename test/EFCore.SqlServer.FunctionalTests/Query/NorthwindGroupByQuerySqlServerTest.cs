@@ -1169,12 +1169,11 @@ ORDER BY COUNT(*), [o].[CustomerID]");
             AssertSql(
                 @"SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
 FROM [Orders] AS [o]
-WHERE [o].[CustomerID] IN (
-    SELECT [o0].[CustomerID]
+WHERE EXISTS (
+    SELECT 1
     FROM [Orders] AS [o0]
     GROUP BY [o0].[CustomerID]
-    HAVING COUNT(*) > 30
-)");
+    HAVING (COUNT(*) > 30) AND (([o0].[CustomerID] = [o].[CustomerID]) OR ([o0].[CustomerID] IS NULL AND [o].[CustomerID] IS NULL)))");
         }
 
         public override async Task GroupBy_aggregate_Pushdown(bool async)
@@ -1675,7 +1674,7 @@ FROM (
         SELECT 1
         FROM [Orders] AS [o]
         GROUP BY [o].[CustomerID]
-        HAVING CAST(0 AS bit) = CAST(1 AS bit)) THEN CAST(1 AS bit)
+        HAVING 0 = 1) THEN CAST(1 AS bit)
     ELSE CAST(0 AS bit)
 END");
         }
@@ -1690,7 +1689,7 @@ END");
         SELECT 1
         FROM [Orders] AS [o]
         GROUP BY [o].[CustomerID]
-        HAVING SUM([o].[OrderID]) < 0) THEN CAST(1 AS bit)
+        HAVING NOT (SUM([o].[OrderID]) >= 0)) THEN CAST(1 AS bit)
     ELSE CAST(0 AS bit)
 END");
         }
@@ -1914,6 +1913,20 @@ GROUP BY [o].[CustomerID]");
             await base.GroupBy_scalar_subquery(async);
 
             AssertSql(" ");
+        }
+
+        public override async Task GroupBy_scalar_aggregate_in_set_operation(bool async)
+        {
+            await base.GroupBy_scalar_aggregate_in_set_operation(async);
+
+            AssertSql(
+                @"SELECT [c].[CustomerID], 0 AS [Sequence]
+FROM [Customers] AS [c]
+WHERE [c].[CustomerID] LIKE N'F%'
+UNION
+SELECT [o].[CustomerID], 1 AS [Sequence]
+FROM [Orders] AS [o]
+GROUP BY [o].[CustomerID]");
         }
 
         private void AssertSql(params string[] expected)

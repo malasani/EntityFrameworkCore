@@ -8,6 +8,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using JetBrains.Annotations;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using Microsoft.EntityFrameworkCore.Diagnostics.Internal;
@@ -495,7 +496,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
             {
                 definition.Log(
                     diagnostics,
-                    $"{navigation.DeclaringEntityType.Name}.{navigation.GetTargetType().Name}");
+                    $"{navigation.DeclaringEntityType.Name}.{navigation.TargetEntityType.Name}");
             }
 
             if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
@@ -513,7 +514,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
         {
             var d = (EventDefinition<string>)definition;
             var p = (NavigationEventData)payload;
-            return d.GenerateMessage($"{p.Navigation.DeclaringEntityType.Name}.{p.Navigation.GetTargetType().Name}");
+            return d.GenerateMessage($"{p.Navigation.DeclaringEntityType.Name}.{p.Navigation.TargetEntityType.Name}");
         }
 
         /// <summary>
@@ -531,7 +532,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
 
             if (diagnostics.ShouldLog(definition))
             {
-                definition.Log(diagnostics,left, right);
+                definition.Log(diagnostics, left, right);
             }
 
             if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
@@ -551,6 +552,43 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
             var d = (EventDefinition<object, object>)definition;
             var p = (BinaryExpressionEventData)payload;
             return d.GenerateMessage(p.Left, p.Right);
+        }
+
+        /// <summary>
+        ///     Logs for the <see cref="CoreEventId.InvalidIncludePathError" /> event.
+        /// </summary>
+        /// <param name="diagnostics"> The diagnostics logger to use. </param>
+        /// <param name="navigationChain"> The navigation chain used in the <see cref="EntityFrameworkQueryableExtensions.Include{TEntity}(IQueryable{TEntity}, string)"/></param>
+        /// <param name="navigationName"> The navigation name which was not found in the model. </param>
+        public static void InvalidIncludePathError(
+            [NotNull] this IDiagnosticsLogger<DbLoggerCategory.Query> diagnostics,
+            [NotNull] string navigationChain,
+            [NotNull] string navigationName)
+        {
+            var definition = CoreResources.LogInvalidIncludePath(diagnostics);
+            if (diagnostics.ShouldLog(definition))
+            {
+                definition.Log(diagnostics, navigationChain, navigationName);
+            }
+
+            if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+            {
+                var eventData = new InvalidIncludePathEventData(
+                    definition,
+                    InvalidIncludePathError,
+                    navigationChain,
+                    navigationName);
+
+                diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+            }
+        }
+
+        private static string InvalidIncludePathError(EventDefinitionBase definition, EventData payload)
+        {
+            var d = (EventDefinition<object, object>)definition;
+            var p = (InvalidIncludePathEventData)payload;
+
+            return d.GenerateMessage(p.NavigationChain, p.NavigationName);
         }
 
         /// <summary>
@@ -1081,10 +1119,14 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
         ///     Logs for the <see cref="CoreEventId.IncompatibleMatchingForeignKeyProperties" /> event.
         /// </summary>
         /// <param name="diagnostics"> The diagnostics logger to use. </param>
+        /// <param name="dependentToPrincipalNavigationSpecification"> The name of the navigation property or entity type on the dependent end of the relationship. </param>
+        /// <param name="principalToDependentNavigationSpecification"> The name of the navigation property or entity type on the principal end of the relationship. </param>
         /// <param name="foreignKeyProperties"> The properties that make up the foreign key. </param>
         /// <param name="principalKeyProperties"> The corresponding keys on the principal side. </param>
         public static void IncompatibleMatchingForeignKeyProperties(
             [NotNull] this IDiagnosticsLogger<DbLoggerCategory.Model> diagnostics,
+            [NotNull] string dependentToPrincipalNavigationSpecification,
+            [NotNull] string principalToDependentNavigationSpecification,
             [NotNull] IReadOnlyList<IPropertyBase> foreignKeyProperties,
             [NotNull] IReadOnlyList<IPropertyBase> principalKeyProperties)
         {
@@ -1094,15 +1136,19 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
             {
                 definition.Log(
                     diagnostics,
+                    dependentToPrincipalNavigationSpecification,
+                    principalToDependentNavigationSpecification,
                     foreignKeyProperties.Format(includeTypes: true),
                     principalKeyProperties.Format(includeTypes: true));
             }
 
             if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
             {
-                var eventData = new TwoPropertyBaseCollectionsEventData(
+                var eventData = new ForeignKeyCandidateEventData(
                     definition,
                     IncompatibleMatchingForeignKeyProperties,
+                    dependentToPrincipalNavigationSpecification,
+                    principalToDependentNavigationSpecification,
                     foreignKeyProperties,
                     principalKeyProperties);
 
@@ -1112,9 +1158,11 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
 
         private static string IncompatibleMatchingForeignKeyProperties(EventDefinitionBase definition, EventData payload)
         {
-            var d = (EventDefinition<string, string>)definition;
-            var p = (TwoPropertyBaseCollectionsEventData)payload;
+            var d = (EventDefinition<string, string, string, string>)definition;
+            var p = (ForeignKeyCandidateEventData)payload;
             return d.GenerateMessage(
+                p.DependentToPrincipalNavigationSpecification,
+                p.PrincipalToDependentNavigationSpecification,
                 p.FirstPropertyCollection.Format(includeTypes: true),
                 p.SecondPropertyCollection.Format(includeTypes: true));
         }
@@ -2911,6 +2959,42 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
             var d = (EventDefinition<string>)definition;
             var p = (DbContextEventData)payload;
             return d.GenerateMessage(p.Context.GetType().ShortDisplayName());
+        }
+
+        /// <summary>
+        ///     Logs for the <see cref="CoreEventId.ConflictingKeylessAndKeyAttributesWarning" /> event.
+        /// </summary>
+        /// <param name="diagnostics"> The diagnostics logger to use. </param>
+        /// <param name="property"> The property which is being defined as part of a key. </param>
+        public static void ConflictingKeylessAndKeyAttributesWarning(
+            [NotNull] this IDiagnosticsLogger<DbLoggerCategory.Model> diagnostics,
+            [NotNull] IProperty property)
+        {
+            var definition = CoreResources.LogConflictingKeylessAndKeyAttributes(diagnostics);
+
+            if (diagnostics.ShouldLog(definition))
+            {
+                definition.Log(diagnostics, property.Name, property.DeclaringEntityType.DisplayName());
+            }
+
+            if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+            {
+                var eventData = new PropertyEventData(
+                    definition,
+                    ConflictingKeylessAndKeyAttributesWarning,
+                    property);
+
+                diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+            }
+        }
+
+        private static string ConflictingKeylessAndKeyAttributesWarning(EventDefinitionBase definition, EventData payload)
+        {
+            var d = (EventDefinition<string, string>)definition;
+            var p = (PropertyEventData)payload;
+            return d.GenerateMessage(
+                p.Property.Name,
+                p.Property.DeclaringEntityType.DisplayName());
         }
     }
 }

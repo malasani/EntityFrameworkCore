@@ -3,18 +3,18 @@ Param(
     [string] $CoreRootDirectory,
     [string] $BaselineCoreRootDirectory,
     [string] $Architecture="x64",
-    [string] $Framework="netcoreapp5.0",
+    [string] $Framework="net5.0",
     [string] $CompilationMode="Tiered",
     [string] $Repository=$env:BUILD_REPOSITORY_NAME,
     [string] $Branch=$env:BUILD_SOURCEBRANCH,
     [string] $CommitSha=$env:BUILD_SOURCEVERSION,
     [string] $BuildNumber=$env:BUILD_BUILDNUMBER,
-    [string] $RunCategories="coreclr corefx",
+    [string] $RunCategories="Libraries Runtime",
     [string] $Csproj="src\benchmarks\micro\MicroBenchmarks.csproj",
     [string] $Kind="micro",
     [switch] $Internal,
     [switch] $Compare,
-    [string] $Configurations="CompilationMode=$CompilationMode"
+    [string] $Configurations="CompilationMode=$CompilationMode RunKind=$Kind"
 )
 
 $RunFromPerformanceRepo = ($Repository -eq "dotnet/performance") -or ($Repository -eq "dotnet-performance")
@@ -31,7 +31,8 @@ $HelixSourcePrefix = "pr"
 
 $Queue = "Windows.10.Amd64.ClientRS4.DevEx.15.8.Open"
 
-if ($Framework.StartsWith("netcoreapp")) {
+# TODO: Implement a better logic to determine if Framework is .NET Core or >= .NET 5.
+if ($Framework.StartsWith("netcoreapp") -or ($Framework -eq "net5.0")) {
     $Queue = "Windows.10.Amd64.ClientRS5.Open"
 }
 
@@ -49,8 +50,16 @@ if ($Internal) {
     $HelixSourcePrefix = "official"
 }
 
-$CommonSetupArguments="--frameworks $Framework --queue $Queue --build-number $BuildNumber --build-configs $Configurations"
+# FIX ME: This is a workaround until we get this from the actual pipeline
+$CommonSetupArguments="--channel master --queue $Queue --build-number $BuildNumber --build-configs $Configurations --architecture $Architecture"
 $SetupArguments = "--repository https://github.com/$Repository --branch $Branch --get-perf-hash --commit-sha $CommitSha $CommonSetupArguments"
+
+
+#This grabs the LKG version number of dotnet and passes it to our scripts
+$VersionJSON = Get-Content global.json | ConvertFrom-Json
+$DotNetVersion = $VersionJSON.tools.dotnet
+$SetupArguments = "--dotnet-versions $DotNetVersion $SetupArguments"
+
 
 if ($RunFromPerformanceRepo) {
     $SetupArguments = "--perf-hash $CommitSha $CommonSetupArguments"

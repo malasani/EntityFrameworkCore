@@ -2,7 +2,6 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
@@ -10,7 +9,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using JetBrains.Annotations;
-using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.EntityFrameworkCore.Utilities;
 
 namespace Microsoft.EntityFrameworkCore.Storage.Internal
 {
@@ -151,7 +150,7 @@ namespace Microsoft.EntityFrameworkCore.Storage.Internal
             {
                 builder
                     .Append('\'')
-                    .Append(((DateTime)parameterValue).ToString("s"))
+                    .Append(((DateTime)parameterValue).ToString("o"))
                     .Append('\'');
             }
             else if (parameterValue.GetType() == typeof(DateTimeOffset))

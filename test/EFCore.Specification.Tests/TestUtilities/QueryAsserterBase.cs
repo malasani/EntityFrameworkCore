@@ -16,9 +16,9 @@ namespace Microsoft.EntityFrameworkCore.TestUtilities
         public virtual ISetSource ExpectedData { get; set; }
 
         public abstract Task AssertSingleResultTyped<TResult>(
-            Func<ISetSource, TResult> actualSyncQuery,
-            Func<ISetSource, Task<TResult>> actualAsyncQuery,
-            Func<ISetSource, TResult> expectedQuery,
+            Expression<Func<ISetSource, TResult>> actualSyncQuery,
+            Expression<Func<ISetSource, Task<TResult>>> actualAsyncQuery,
+            Expression<Func<ISetSource, TResult>> expectedQuery,
             Action<TResult, TResult> asserter,
             int entryCount,
             bool async,
@@ -513,6 +513,14 @@ namespace Microsoft.EntityFrameworkCore.TestUtilities
             Expression<Func<TResult, double?>> actualSelector,
             Expression<Func<TResult, double?>> expectedSelector,
             Action<double?, double?> asserter = null,
+            bool async = false);
+
+        public abstract Task AssertContains<TElement>(
+            Func<ISetSource, IQueryable<TElement>> actualQuery,
+            Func<ISetSource, IQueryable<TElement>> expectedQuery,
+            TElement actualElement,
+            TElement expectedElement,
+            Action<bool, bool> asserter = null,
             bool async = false);
 
         #endregion

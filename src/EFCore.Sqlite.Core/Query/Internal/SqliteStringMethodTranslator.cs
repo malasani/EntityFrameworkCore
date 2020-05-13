@@ -13,6 +13,12 @@ using Microsoft.EntityFrameworkCore.Utilities;
 
 namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
 {
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     public class SqliteStringMethodTranslator : IMethodCallTranslator
     {
         private static readonly MethodInfo _indexOfMethodInfo
@@ -74,11 +80,23 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
         private readonly ISqlExpressionFactory _sqlExpressionFactory;
         private const char LikeEscapeChar = '\\';
 
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
         public SqliteStringMethodTranslator([NotNull] ISqlExpressionFactory sqlExpressionFactory)
         {
             _sqlExpressionFactory = sqlExpressionFactory;
         }
 
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
         public virtual SqlExpression Translate(SqlExpression instance, MethodInfo method, IReadOnlyList<SqlExpression> arguments)
         {
             Check.NotNull(method, nameof(method));
@@ -97,6 +115,8 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
                             _sqlExpressionFactory.ApplyTypeMapping(instance, stringTypeMapping),
                             _sqlExpressionFactory.ApplyTypeMapping(argument, stringTypeMapping)
                         },
+                        nullable: true,
+                        argumentsPropagateNullability: new[] { true, true },
                         method.ReturnType),
                     _sqlExpressionFactory.Constant(1));
             }
@@ -115,6 +135,8 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
                         _sqlExpressionFactory.ApplyTypeMapping(firstArgument, stringTypeMapping),
                         _sqlExpressionFactory.ApplyTypeMapping(secondArgument, stringTypeMapping)
                     },
+                    nullable: true,
+                    argumentsPropagateNullability: new[] { true, true, true },
                     method.ReturnType,
                     stringTypeMapping);
             }
@@ -125,6 +147,8 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
                 return _sqlExpressionFactory.Function(
                     _toLowerMethodInfo.Equals(method) ? "lower" : "upper",
                     new[] { instance },
+                    nullable: true,
+                    argumentsPropagateNullability: new[] { true },
                     method.ReturnType,
                     instance.TypeMapping);
             }
@@ -134,6 +158,8 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
                 return _sqlExpressionFactory.Function(
                     "substr",
                     new[] { instance, _sqlExpressionFactory.Add(arguments[0], _sqlExpressionFactory.Constant(1)), arguments[1] },
+                    nullable: true,
+                    argumentsPropagateNullability: new[] { true, true, true },
                     method.ReturnType,
                     instance.TypeMapping);
             }
@@ -146,7 +172,12 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
                     _sqlExpressionFactory.IsNull(argument),
                     _sqlExpressionFactory.Equal(
                         _sqlExpressionFactory.Function(
-                            "trim", new[] { argument }, argument.Type, argument.TypeMapping),
+                            "trim",
+                            new[] { argument },
+                            nullable: true,
+                            argumentsPropagateNullability: new[] { true },
+                            argument.Type,
+                            argument.TypeMapping),
                         _sqlExpressionFactory.Constant(string.Empty)));
             }
 
@@ -187,6 +218,8 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
                         _sqlExpressionFactory.Function(
                             "instr",
                             new[] { instance, pattern },
+                            nullable: true,
+                            argumentsPropagateNullability: new[] { true, true },
                             typeof(int)),
                         _sqlExpressionFactory.Constant(0)));
             }
@@ -249,7 +282,7 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
                         _sqlExpressionFactory.Like(
                             instance,
                             _sqlExpressionFactory.Add(
-                                instance,
+                                pattern,
                                 _sqlExpressionFactory.Constant("%"))),
                         _sqlExpressionFactory.Equal(
                             _sqlExpressionFactory.Function(
@@ -258,8 +291,15 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
                                 {
                                     instance,
                                     _sqlExpressionFactory.Constant(1),
-                                    _sqlExpressionFactory.Function("length", new[] { pattern }, typeof(int))
+                                    _sqlExpressionFactory.Function(
+                                        "length",
+                                        new[] { pattern },
+                                        nullable: true,
+                                        argumentsPropagateNullability: new[] { true },
+                                        typeof(int))
                                 },
+                                nullable: true,
+                                argumentsPropagateNullability: new[] { true, false, true },
                                 typeof(string),
                                 stringTypeMapping),
                             pattern)),
@@ -276,8 +316,15 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
                         {
                             instance,
                             _sqlExpressionFactory.Negate(
-                                _sqlExpressionFactory.Function("length", new[] { pattern }, typeof(int)))
+                                _sqlExpressionFactory.Function(
+                                    "length",
+                                    new[] { pattern },
+                                    nullable: true,
+                                    argumentsPropagateNullability: new[] { true },
+                                    typeof(int)))
                         },
+                        nullable: true,
+                        argumentsPropagateNullability: new[] { true, true },
                         typeof(string),
                         stringTypeMapping),
                     pattern),
@@ -343,6 +390,9 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal
             return _sqlExpressionFactory.Function(
                 functionName,
                 sqlArguments,
+
+                nullable: true,
+                argumentsPropagateNullability: sqlArguments.Select(a => true).ToList(),
                 typeof(string),
                 typeMapping);
         }

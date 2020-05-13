@@ -41,12 +41,17 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="property"> The property. </param>
         /// <param name="name"> The sequence name to use. </param>
         /// <param name="fromDataAnnotation"> Indicates whether the configuration was specified using a data annotation. </param>
-        public static void SetHiLoSequenceName(
+        /// <returns> The configured value. </returns>
+        public static string SetHiLoSequenceName(
             [NotNull] this IConventionProperty property, [CanBeNull] string name, bool fromDataAnnotation = false)
-            => property.SetOrRemoveAnnotation(
+        {
+            property.SetOrRemoveAnnotation(
                 SqlServerAnnotationNames.HiLoSequenceName,
                 Check.NullButNotEmpty(name, nameof(name)),
                 fromDataAnnotation);
+
+            return name;
+        }
 
         /// <summary>
         ///     Returns the <see cref="ConfigurationSource" /> for the hi-lo sequence name.
@@ -80,12 +85,17 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="property"> The property. </param>
         /// <param name="schema"> The schema to use. </param>
         /// <param name="fromDataAnnotation"> Indicates whether the configuration was specified using a data annotation. </param>
-        public static void SetHiLoSequenceSchema(
+        /// <returns> The configured value. </returns>
+        public static string SetHiLoSequenceSchema(
             [NotNull] this IConventionProperty property, [CanBeNull] string schema, bool fromDataAnnotation = false)
-            => property.SetOrRemoveAnnotation(
+        {
+            property.SetOrRemoveAnnotation(
                 SqlServerAnnotationNames.HiLoSequenceSchema,
                 Check.NullButNotEmpty(schema, nameof(schema)),
                 fromDataAnnotation);
+
+            return schema;
+        }
 
         /// <summary>
         ///     Returns the <see cref="ConfigurationSource" /> for the hi-lo sequence schema.
@@ -98,7 +108,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <summary>
         ///     Finds the <see cref="ISequence" /> in the model to use for the hi-lo pattern.
         /// </summary>
-        /// <returns> The sequence to use, or <c>null</c> if no sequence exists in the model. </returns>
+        /// <returns> The sequence to use, or <see langword="null" /> if no sequence exists in the model. </returns>
         public static ISequence FindHiLoSequence([NotNull] this IProperty property)
         {
             var model = property.DeclaringEntityType.Model;
@@ -141,12 +151,17 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="property"> The property. </param>
         /// <param name="seed"> The value to set. </param>
         /// <param name="fromDataAnnotation"> Indicates whether the configuration was specified using a data annotation. </param>
-        public static void SetIdentitySeed(
+        /// <returns> The configured value. </returns>
+        public static int? SetIdentitySeed(
             [NotNull] this IConventionProperty property, int? seed, bool fromDataAnnotation = false)
-            => property.SetOrRemoveAnnotation(
+        {
+            property.SetOrRemoveAnnotation(
                 SqlServerAnnotationNames.IdentitySeed,
                 seed,
                 fromDataAnnotation);
+
+            return seed;
+        }
 
         /// <summary>
         ///     Returns the <see cref="ConfigurationSource" /> for the identity seed.
@@ -180,12 +195,17 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="property"> The property. </param>
         /// <param name="increment"> The value to set. </param>
         /// <param name="fromDataAnnotation"> Indicates whether the configuration was specified using a data annotation. </param>
-        public static void SetIdentityIncrement(
+        /// <returns> The configured value. </returns>
+        public static int? SetIdentityIncrement(
             [NotNull] this IConventionProperty property, int? increment, bool fromDataAnnotation = false)
-            => property.SetOrRemoveAnnotation(
+        {
+            property.SetOrRemoveAnnotation(
                 SqlServerAnnotationNames.IdentityIncrement,
                 increment,
                 fromDataAnnotation);
+
+            return increment;
+        }
 
         /// <summary>
         ///     Returns the <see cref="ConfigurationSource" /> for the identity increment.
@@ -212,7 +232,7 @@ namespace Microsoft.EntityFrameworkCore
                 return (SqlServerValueGenerationStrategy)annotation;
             }
 
-            var sharedTablePrincipalPrimaryKeyProperty = property.FindSharedTableRootPrimaryKeyProperty();
+            var sharedTablePrincipalPrimaryKeyProperty = property.FindSharedRootPrimaryKeyProperty();
             if (sharedTablePrincipalPrimaryKeyProperty != null)
             {
                 return sharedTablePrincipalPrimaryKeyProperty.GetValueGenerationStrategy()
@@ -262,12 +282,15 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="property"> The property. </param>
         /// <param name="value"> The strategy to use. </param>
         /// <param name="fromDataAnnotation"> Indicates whether the configuration was specified using a data annotation. </param>
-        public static void SetValueGenerationStrategy(
+        /// <returns> The configured value. </returns>
+        public static SqlServerValueGenerationStrategy? SetValueGenerationStrategy(
             [NotNull] this IConventionProperty property, SqlServerValueGenerationStrategy? value, bool fromDataAnnotation = false)
         {
             CheckValueGenerationStrategy(property, value);
 
             property.SetOrRemoveAnnotation(SqlServerAnnotationNames.ValueGenerationStrategy, value, fromDataAnnotation);
+
+            return value;
         }
 
         private static void CheckValueGenerationStrategy(IProperty property, SqlServerValueGenerationStrategy? value)
@@ -307,7 +330,7 @@ namespace Microsoft.EntityFrameworkCore
         ///     Returns a value indicating whether the property is compatible with any <see cref="SqlServerValueGenerationStrategy" />.
         /// </summary>
         /// <param name="property"> The property. </param>
-        /// <returns> <c>true</c> if compatible. </returns>
+        /// <returns> <see langword="true" /> if compatible. </returns>
         public static bool IsCompatibleWithValueGeneration([NotNull] IProperty property)
         {
             var type = property.ClrType;

@@ -23,6 +23,11 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
         /// <summary>
         ///     Conventions to run when model building is completed.
         /// </summary>
+        public virtual IList<IModelFinalizingConvention> ModelFinalizingConventions { get; } = new List<IModelFinalizingConvention>();
+
+        /// <summary>
+        ///     Conventions to run when model validation is completed.
+        /// </summary>
         public virtual IList<IModelFinalizedConvention> ModelFinalizedConventions { get; } = new List<IModelFinalizedConvention>();
 
         /// <summary>
@@ -125,7 +130,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
         ///     Conventions to run when an annotation is changed on a navigation property.
         /// </summary>
         public virtual IList<INavigationAnnotationChangedConvention> NavigationAnnotationChangedConventions { get; }
-            = new List<INavigationAnnotationChangedConvention>();        
+            = new List<INavigationAnnotationChangedConvention>();
 
         /// <summary>
         ///     Conventions to run when a navigation property is removed.
@@ -143,6 +148,12 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
         /// </summary>
         public virtual IList<ISkipNavigationAnnotationChangedConvention> SkipNavigationAnnotationChangedConventions { get; }
             = new List<ISkipNavigationAnnotationChangedConvention>();
+
+        /// <summary>
+        ///     Conventions to run when a skip navigation foreign key is changed.
+        /// </summary>
+        public virtual IList<ISkipNavigationForeignKeyChangedConvention> SkipNavigationForeignKeyChangedConventions { get; }
+            = new List<ISkipNavigationForeignKeyChangedConvention>();
 
         /// <summary>
         ///     Conventions to run when a skip navigation inverse is changed.
@@ -229,7 +240,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
         /// <typeparam name="TImplementation"> The type of the old convention. </typeparam>
         /// <param name="conventionsList"> The list of existing convention instances to scan. </param>
         /// <param name="newConvention"> The new convention. </param>
-        /// <returns> <c>true</c> if the convention was replaced. </returns>
+        /// <returns> <see langword="true" /> if the convention was replaced. </returns>
         public static bool Replace<TConvention, TImplementation>(
             [NotNull] IList<TConvention> conventionsList,
             [NotNull] TImplementation newConvention)
@@ -258,7 +269,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
         /// <param name="conventionsList"> The list of existing convention instances to scan. </param>
         /// <param name="newConvention"> The new convention. </param>
         /// <param name="existingConventionType"> The type of the existing convention. </param>
-        /// <returns> <c>true</c> if the convention was added. </returns>
+        /// <returns> <see langword="true" /> if the convention was added. </returns>
         public static bool AddBefore<TConvention>(
             [NotNull] IList<TConvention> conventionsList,
             [NotNull] TConvention newConvention,
@@ -286,7 +297,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
         /// <param name="conventionsList"> The list of existing convention instances to scan. </param>
         /// <param name="newConvention"> The new convention. </param>
         /// <param name="existingConventionType"> The type of the existing convention. </param>
-        /// <returns> <c>true</c> if the convention was added. </returns>
+        /// <returns> <see langword="true" /> if the convention was added. </returns>
         public static bool AddAfter<TConvention>(
             [NotNull] IList<TConvention> conventionsList,
             [NotNull] TConvention newConvention,
@@ -313,7 +324,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
         /// <typeparam name="TConvention"> The type of convention being removed. </typeparam>
         /// <param name="conventionsList"> The list of existing convention instances to scan. </param>
         /// <param name="existingConventionType"> The type of the existing convention. </param>
-        /// <returns> <c>true</c> if the convention was removed. </returns>
+        /// <returns> <see langword="true" /> if the convention was removed. </returns>
         public static bool Remove<TConvention>(
             [NotNull] IList<TConvention> conventionsList,
             [NotNull] Type existingConventionType)

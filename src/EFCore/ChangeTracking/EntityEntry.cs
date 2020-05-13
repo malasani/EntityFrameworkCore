@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Update;
 using Microsoft.EntityFrameworkCore.Utilities;
 
 namespace Microsoft.EntityFrameworkCore.ChangeTracking
@@ -142,7 +143,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
             var navigation = InternalEntry.EntityType.FindNavigation(propertyName);
             if (navigation != null)
             {
-                return navigation.IsCollection()
+                return navigation.IsCollection
                     ? (MemberEntry)new CollectionEntry(InternalEntry, propertyName)
                     : new ReferenceEntry(InternalEntry, propertyName);
             }
@@ -171,7 +172,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
             var navigation = InternalEntry.EntityType.FindNavigation(propertyName);
             if (navigation != null)
             {
-                return navigation.IsCollection()
+                return navigation.IsCollection
                     ? (NavigationEntry)new CollectionEntry(InternalEntry, propertyName)
                     : new ReferenceEntry(InternalEntry, propertyName);
             }
@@ -194,7 +195,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
         /// </summary>
         public virtual IEnumerable<NavigationEntry> Navigations
             => InternalEntry.EntityType.GetNavigations().Select(
-                navigation => navigation.IsCollection()
+                navigation => navigation.IsCollection
                     ? (NavigationEntry)new CollectionEntry(InternalEntry, navigation)
                     : new ReferenceEntry(InternalEntry, navigation));
 
@@ -239,7 +240,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
         ///     reference (i.e. non-collection) navigation properties of this entity.
         /// </summary>
         public virtual IEnumerable<ReferenceEntry> References
-            => InternalEntry.EntityType.GetNavigations().Where(n => !n.IsCollection())
+            => InternalEntry.EntityType.GetNavigations().Where(n => !n.IsCollection)
                 .Select(navigation => new ReferenceEntry(InternalEntry, navigation));
 
         /// <summary>
@@ -263,7 +264,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
         ///     collection navigation properties of this entity.
         /// </summary>
         public virtual IEnumerable<CollectionEntry> Collections
-            => InternalEntry.EntityType.GetNavigations().Where(n => n.IsCollection())
+            => InternalEntry.EntityType.GetNavigations().Where(n => n.IsCollection)
                 .Select(navigation => new CollectionEntry(InternalEntry, navigation));
 
         /// <summary>
@@ -292,8 +293,14 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
         }
 
         /// <summary>
-        ///     Gets the original property values for this entity. The original values are the property
-        ///     values as they were when the entity was retrieved from the database.
+        ///     <para>
+        ///         Gets the original property values for this entity. The original values are the property
+        ///         values as they were when the entity was retrieved from the database.
+        ///     </para>
+        ///     <para>
+        ///         Note that whenever real original property values are not available (e.g. entity was not yet
+        ///         persisted to the database) this will default to the current property values of this entity.
+        ///     </para>
         /// </summary>
         /// <value> The original values. </value>
         public virtual PropertyValues OriginalValues
@@ -408,6 +415,20 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
         /// </summary>
         /// <returns> A string that represents the current object. </returns>
         public override string ToString() => InternalEntry.ToString();
+
+        /// <summary>
+        ///     <para>
+        ///         Expand this property in the debugger for a human-readable view of entry.
+        ///     </para>
+        ///     <para>
+        ///         Warning: Do not rely on the format of the debug strings.
+        ///         They are designed for debugging only and may change arbitrarily between releases.
+        ///     </para>
+        /// </summary>
+        public virtual DebugView DebugView
+            => new DebugView(
+                () => InternalEntry.ToDebugString(ChangeTrackerDebugStringOptions.ShortDefault),
+                () => InternalEntry.ToDebugString(ChangeTrackerDebugStringOptions.LongDefault));
 
         #region Hidden System.Object members
 

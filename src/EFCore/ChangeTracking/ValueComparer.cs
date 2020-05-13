@@ -3,7 +3,7 @@
 
 using System;
 using System.Collections;
-using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using JetBrains.Annotations;
@@ -28,6 +28,14 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
     /// </summary>
     public abstract class ValueComparer : IEqualityComparer
     {
+        internal static readonly MethodInfo ArrayCopyMethod
+            = typeof(Array).GetMethods()
+                .Single(t => t.Name == nameof(Array.Copy)
+                    && t.GetParameters().Length == 3
+                    && t.GetParameters()[0].ParameterType == typeof(Array)
+                    && t.GetParameters()[1].ParameterType == typeof(Array)
+                    && t.GetParameters()[2].ParameterType == typeof(int));
+
         internal static readonly MethodInfo EqualityComparerHashCodeMethod
             = typeof(IEqualityComparer).GetRuntimeMethod(nameof(IEqualityComparer.GetHashCode), new[] { typeof(object) });
 
@@ -71,7 +79,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
         /// </summary>
         /// <param name="left"> The first instance. </param>
         /// <param name="right"> The second instance. </param>
-        /// <returns> <c>True</c> if they are equal; <c>false</c> otherwise. </returns>
+        /// <returns> <see langword="true" /> if they are equal; <see langword="false" /> otherwise. </returns>
         public new abstract bool Equals(object left, object right);
 
         /// <summary>
@@ -137,7 +145,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
             var original2 = EqualsExpression.Parameters[1];
 
             return new ReplacingExpressionVisitor(
-                    new Dictionary<Expression, Expression> { { original1, leftExpression }, { original2, rightExpression } })
+                    new Expression[] { original1, original2 }, new[] { leftExpression, rightExpression })
                 .Visit(EqualsExpression.Body);
         }
 
@@ -176,17 +184,11 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
         }
 
         /// <summary>
-        ///     If true, then expressions and delegates for comparisons, snapshots, and hash codes correspond to the default
-        ///     .NET behavior for the given type.
-        /// </summary>
-        public virtual bool HasDefaultBehavior => false;
-
-        /// <summary>
         ///     Creates a default <see cref="ValueComparer{T}" /> for the given type.
         /// </summary>
         /// <param name="type"> The type. </param>
         /// <param name="favorStructuralComparisons">
-        ///     If <c>true</c>, then EF will use <see cref="IStructuralEquatable" /> if the type
+        ///     If <see langword="true" />, then EF will use <see cref="IStructuralEquatable" /> if the type
         ///     implements it. This is usually used when byte arrays act as keys.
         /// </param>
         /// <returns> The <see cref="ValueComparer{T}" />. </returns>
@@ -210,7 +212,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
                 new object[] { favorStructuralComparisons });
         }
 
-        private sealed class DefaultValueComparer<T> : ValueComparer<T>
+        internal sealed class DefaultValueComparer<T> : ValueComparer<T>
         {
             public DefaultValueComparer(bool favorStructuralComparisons)
                 : base(favorStructuralComparisons)
@@ -228,8 +230,6 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking
 
             public override T Snapshot(T instance)
                 => instance;
-
-            public override bool HasDefaultBehavior => true;
         }
     }
 }

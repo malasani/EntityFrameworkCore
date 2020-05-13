@@ -4,6 +4,7 @@
 using System;
 using System.Linq.Expressions;
 using JetBrains.Annotations;
+using Microsoft.EntityFrameworkCore.Cosmos.Internal;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Utilities;
@@ -26,11 +27,12 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
         /// </summary>
         public ObjectAccessExpression([NotNull] INavigation navigation, [NotNull] Expression accessExpression)
         {
-            Name = navigation.GetTargetType().GetContainingPropertyName();
+            Name = navigation.TargetEntityType.GetContainingPropertyName();
             if (Name == null)
             {
                 throw new InvalidOperationException(
-                    $"Navigation '{navigation.DeclaringEntityType.DisplayName()}.{navigation.Name}' doesn't point to an embedded entity.");
+                    CosmosStrings.NavigationPropertyIsNotAnEmbeddedEntity(
+                        navigation.DeclaringEntityType.DisplayName(), navigation.Name));
             }
 
             Navigation = navigation;
@@ -87,9 +89,7 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
         {
             Check.NotNull(visitor, nameof(visitor));
 
-            var outerExpression = visitor.Visit(AccessExpression);
-
-            return Update(outerExpression);
+            return Update(visitor.Visit(AccessExpression));
         }
 
         /// <summary>

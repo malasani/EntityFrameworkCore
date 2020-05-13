@@ -12,7 +12,6 @@ using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using Microsoft.EntityFrameworkCore.InMemory.Internal;
 using Microsoft.EntityFrameworkCore.InMemory.ValueGeneration.Internal;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.EntityFrameworkCore.Update;
 using Microsoft.EntityFrameworkCore.Utilities;
@@ -28,7 +27,6 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Storage.Internal
     public class InMemoryTable<TKey> : IInMemoryTable
     {
         // WARNING: The in-memory provider is using EF internal code here. This should not be copied by other providers. See #15096
-        private readonly IEntityType _entityType;
         private readonly IPrincipalKeyValueFactory<TKey> _keyValueFactory;
         private readonly bool _sensitiveLoggingEnabled;
         private readonly Dictionary<TKey, object[]> _rows;
@@ -43,9 +41,10 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Storage.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public InMemoryTable([NotNull] IEntityType entityType, bool sensitiveLoggingEnabled)
+        public InMemoryTable([NotNull] IEntityType entityType, [CanBeNull] IInMemoryTable baseTable, bool sensitiveLoggingEnabled)
         {
-            _entityType = entityType;
+            EntityType = entityType;
+            BaseTable = baseTable;
             // WARNING: The in-memory provider is using EF internal code here. This should not be copied by other providers. See #15096
             _keyValueFactory = entityType.FindPrimaryKey().GetPrincipalKeyValueFactory<TKey>();
             _sensitiveLoggingEnabled = sensitiveLoggingEnabled;
@@ -65,8 +64,8 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Storage.Internal
                     _valueConverters.Add((property.GetIndex(), converter));
                 }
 
-                var comparer = GetStructuralComparer(property);
-                if (!comparer.HasDefaultBehavior)
+                var comparer = property.GetKeyValueComparer();
+                if (!comparer.IsDefault())
                 {
                     if (_valueComparers == null)
                     {
@@ -83,23 +82,42 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Storage.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public virtual InMemoryIntegerValueGenerator<TProperty> GetIntegerValueGenerator<TProperty>(IProperty property)
+        public virtual IInMemoryTable BaseTable { get; }
+
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
+        public virtual IEntityType EntityType { get; }
+
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
+        public virtual InMemoryIntegerValueGenerator<TProperty> GetIntegerValueGenerator<TProperty>(
+            IProperty property, IReadOnlyList<IInMemoryTable> tables)
         {
             if (_integerGenerators == null)
             {
                 _integerGenerators = new Dictionary<int, IInMemoryIntegerValueGenerator>();
             }
 
-            // WARNING: The in-memory provider is using EF internal code here. This should not be copied by other providers. See #15096
-            var propertyIndex = EntityFrameworkCore.Metadata.Internal.PropertyBaseExtensions.GetIndex(property);
+            var propertyIndex = property.GetIndex();
             if (!_integerGenerators.TryGetValue(propertyIndex, out var generator))
             {
                 generator = new InMemoryIntegerValueGenerator<TProperty>(propertyIndex);
                 _integerGenerators[propertyIndex] = generator;
 
-                foreach (var row in _rows.Values)
+                foreach (var table in tables)
                 {
-                    generator.Bump(row);
+                    foreach (var row in table.Rows)
+                    {
+                        generator.Bump(row);
+                    }
                 }
             }
 
@@ -112,11 +130,19 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Storage.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
+        public virtual IEnumerable<object[]> Rows => _rows.Values;
+
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
         public virtual IReadOnlyList<object[]> SnapshotRows()
         {
             var rows = _rows.Values.ToList();
             var rowCount = rows.Count;
-            var properties = _entityType.GetProperties().ToList();
+            var properties = EntityType.GetProperties().ToList();
             var propertyCount = properties.Count;
 
             for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
@@ -146,14 +172,8 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Storage.Internal
             return rows;
         }
 
-        private static List<ValueComparer> GetStructuralComparers(IEnumerable<IProperty> properties)
-            => properties.Select(GetStructuralComparer).ToList();
-
-        private static ValueComparer GetStructuralComparer(IProperty p)
-            => p.GetStructuralValueComparer()
-                ?? p.GetKeyValueComparer()
-                ?? p.GetValueComparer()
-                ?? p.FindTypeMapping()?.StructuralComparer;
+        private static List<ValueComparer> GetKeyComparers(IEnumerable<IProperty> properties)
+            => properties.Select(p => p.GetKeyValueComparer()).ToList();
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -164,7 +184,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Storage.Internal
         public virtual void Create(IUpdateEntry entry)
         {
             var row = entry.EntityType.GetProperties()
-                .Select(p => SnapshotValue(p, GetStructuralComparer(p), entry))
+                .Select(p => SnapshotValue(p, p.GetKeyValueComparer(), entry))
                 .ToArray();
 
             _rows.Add(CreateKey(entry), row);
@@ -211,14 +231,18 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Storage.Internal
             object rowValue,
             Dictionary<IProperty, object> concurrencyConflicts)
         {
-            if (property.IsConcurrencyToken
-                && !StructuralComparisons.StructuralEqualityComparer.Equals(
-                    rowValue,
-                    entry.GetOriginalValue(property)))
+            if (property.IsConcurrencyToken)
             {
-                concurrencyConflicts.Add(property, rowValue);
+                var comparer = property.GetKeyValueComparer();
+                var originalValue = entry.GetOriginalValue(property);
 
-                return true;
+                if ((comparer != null && !comparer.Equals(rowValue, originalValue))
+                    || (comparer == null && !StructuralComparisons.StructuralEqualityComparer.Equals(rowValue, originalValue)))
+                {
+                    concurrencyConflicts.Add(property, rowValue);
+
+                    return true;
+                }
             }
 
             return false;
@@ -237,7 +261,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Storage.Internal
             if (_rows.ContainsKey(key))
             {
                 var properties = entry.EntityType.GetProperties().ToList();
-                var comparers = GetStructuralComparers(properties);
+                var comparers = GetKeyComparers(properties);
                 var valueBuffer = new object[properties.Count];
                 var concurrencyConflicts = new Dictionary<IProperty, object>();
 
@@ -268,8 +292,19 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Storage.Internal
             }
         }
 
-        private void BumpValueGenerators(object[] row)
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
+        public virtual void BumpValueGenerators(object[] row)
         {
+            if (BaseTable != null)
+            {
+                BaseTable.BumpValueGenerators(row);
+            }
+
             if (_integerGenerators != null)
             {
                 foreach (var generator in _integerGenerators.Values)

@@ -165,6 +165,22 @@ namespace System
             return singleImplementation?.GenericTypeArguments.FirstOrDefault();
         }
 
+        public static bool IsCompatibleWith(this Type propertyType, Type fieldType)
+        {
+            if (propertyType.IsAssignableFrom(fieldType)
+                || fieldType.IsAssignableFrom(propertyType))
+            {
+                return true;
+            }
+
+            var propertyElementType = propertyType.TryGetSequenceType();
+            var fieldElementType = fieldType.TryGetSequenceType();
+
+            return propertyElementType != null
+                && fieldElementType != null
+                && IsCompatibleWith(propertyElementType, fieldElementType);
+        }
+
         public static IEnumerable<Type> GetGenericTypeImplementations(this Type type, Type interfaceOrBaseType)
         {
             var typeInfo = type.GetTypeInfo();
@@ -316,6 +332,17 @@ namespace System
             {
                 return ex.Types.Where(t => t != null).Select(IntrospectionExtensions.GetTypeInfo);
             }
+        }
+
+        public static bool IsQueryableType(this Type type)
+        {
+            if (type.IsGenericType
+                && type.GetGenericTypeDefinition() == typeof(IQueryable<>))
+            {
+                return true;
+            }
+
+            return type.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IQueryable<>));
         }
     }
 }

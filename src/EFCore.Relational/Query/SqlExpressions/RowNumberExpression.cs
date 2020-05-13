@@ -11,24 +11,45 @@ using Microsoft.EntityFrameworkCore.Utilities;
 
 namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions
 {
+    /// <summary>
+    ///     <para>
+    ///         An expression that represents a ROW_NUMBER operation in a SQL tree.
+    ///     </para>
+    ///     <para>
+    ///         This type is typically used by database providers (and other extensions). It is generally
+    ///         not used in application code.
+    ///     </para>
+    /// </summary>
     public class RowNumberExpression : SqlExpression
     {
+        /// <summary>
+        ///     Creates a new instance of the <see cref="RowNumberExpression" /> class.
+        /// </summary>
+        /// <param name="partitions"> A list expressions to partition by. </param>
+        /// <param name="orderings"> A list of ordering expressions to order by. </param>
+        /// <param name="typeMapping"> The <see cref="RelationalTypeMapping"/> associated with the expression. </param>
         public RowNumberExpression(
-            [NotNull] IReadOnlyList<SqlExpression> partitions,
+            [CanBeNull] IReadOnlyList<SqlExpression> partitions,
             [NotNull] IReadOnlyList<OrderingExpression> orderings,
             [CanBeNull] RelationalTypeMapping typeMapping)
             : base(typeof(long), typeMapping)
         {
-            Check.NotNull(partitions, nameof(partitions));
             Check.NotEmpty(orderings, nameof(orderings));
 
-            Partitions = partitions;
+            Partitions = partitions ?? Array.Empty<SqlExpression>();
             Orderings = orderings;
         }
 
+        /// <summary>
+        ///     The list of expressions used in partitioning.
+        /// </summary>
         public virtual IReadOnlyList<SqlExpression> Partitions { get; }
+        /// <summary>
+        ///     The list of ordering expressions used to order inside the given partition.
+        /// </summary>
         public virtual IReadOnlyList<OrderingExpression> Orderings { get; }
 
+        /// <inheritdoc />
         protected override Expression VisitChildren(ExpressionVisitor visitor)
         {
             Check.NotNull(visitor, nameof(visitor));
@@ -55,6 +76,13 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions
                 : this;
         }
 
+        /// <summary>
+        ///     Creates a new expression that is like this one, but using the supplied children. If all of the children are the same, it will
+        ///     return this expression.
+        /// </summary>
+        /// <param name="partitions"> The <see cref="Partitions"/> property of the result. </param>
+        /// <param name="orderings"> The <see cref="Orderings"/> property of the result. </param>
+        /// <returns> This expression if no children changed, or an expression with the updated children. </returns>
         public virtual RowNumberExpression Update(
             [CanBeNull] IReadOnlyList<SqlExpression> partitions, [NotNull] IReadOnlyList<OrderingExpression> orderings)
         {
@@ -66,6 +94,7 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions
                     : new RowNumberExpression(partitions, orderings, TypeMapping);
         }
 
+        /// <inheritdoc />
         public override void Print(ExpressionPrinter expressionPrinter)
         {
             Check.NotNull(expressionPrinter, nameof(expressionPrinter));
@@ -74,15 +103,16 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions
             if (Partitions.Any())
             {
                 expressionPrinter.Append("PARTITION BY ");
-                expressionPrinter.VisitList(Partitions);
+                expressionPrinter.VisitCollection(Partitions);
                 expressionPrinter.Append(" ");
             }
 
             expressionPrinter.Append("ORDER BY ");
-            expressionPrinter.VisitList(Orderings);
+            expressionPrinter.VisitCollection(Orderings);
             expressionPrinter.Append(")");
         }
 
+        /// <inheritdoc />
         public override bool Equals(object obj)
             => obj != null
                 && (ReferenceEquals(this, obj)
@@ -94,6 +124,7 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions
                 && (Partitions == null ? rowNumberExpression.Partitions == null : Partitions.SequenceEqual(rowNumberExpression.Partitions))
                 && Orderings.SequenceEqual(rowNumberExpression.Orderings);
 
+        /// <inheritdoc />
         public override int GetHashCode()
         {
             var hash = new HashCode();

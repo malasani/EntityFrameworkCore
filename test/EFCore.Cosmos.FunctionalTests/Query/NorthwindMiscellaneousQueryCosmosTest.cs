@@ -1003,7 +1003,8 @@ WHERE (c[""Discriminator""] = ""Customer"")");
                 asyncQuery: ss => ss.Set<Customer>()
                     .AllAsync(
                         c1 => c1.CustomerID == "ALFKI"
-                            && ss.Set<Customer>().Any(c2 => ss.Set<Customer>().Any(c3 => c1.CustomerID == c3.CustomerID))));
+                            && ss.Set<Customer>().Any(c2 => ss.Set<Customer>().Any(c3 => c1.CustomerID == c3.CustomerID)),
+                        default));
 
             AssertSql(
                 @"SELECT c
@@ -1029,7 +1030,8 @@ WHERE (c[""Discriminator""] = ""Customer"")");
                             && ss.Set<Customer>()
                                 .Any(
                                     c2 => ss.Set<Customer>()
-                                        .Any(c3 => EF.Property<string>(c1, "CustomerID") == c3.CustomerID))));
+                                        .Any(c3 => EF.Property<string>(c1, "CustomerID") == c3.CustomerID)),
+                                default));
 
             AssertSql(
                 @"SELECT c
@@ -3843,6 +3845,18 @@ WHERE (c[""Discriminator""] = ""Customer"")");
         }
 
         [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Entity_equality_orderby_subquery(bool async)
+        {
+            return base.Entity_equality_orderby_subquery(async);
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Entity_equality_orderby_descending_subquery_composite_key(bool async)
+        {
+            return base.Entity_equality_orderby_descending_subquery_composite_key(async);
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
         public override Task Null_Coalesce_Short_Circuit(bool async)
         {
             return base.Null_Coalesce_Short_Circuit(async);
@@ -3987,6 +4001,137 @@ WHERE (c[""Discriminator""] = ""Customer"")");
         {
             return base.Subquery_DefaultIfEmpty_Any(async);
         }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Projection_skip_collection_projection(bool async)
+        {
+            return base.Projection_skip_collection_projection(async);
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Projection_take_collection_projection(bool async)
+        {
+            return base.Projection_take_collection_projection(async);
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Projection_skip_take_collection_projection(bool async)
+        {
+            return base.Projection_skip_take_collection_projection(async);
+        }
+
+        public override Task Projection_skip_projection(bool async)
+        {
+            return AssertTranslationFailed(() => base.Projection_skip_projection(async));
+        }
+
+        public override Task Projection_take_projection(bool async)
+        {
+            return AssertTranslationFailed(() => base.Projection_take_projection(async));
+        }
+
+        public override Task Projection_skip_take_projection(bool async)
+        {
+            return AssertTranslationFailed(() => base.Projection_skip_take_projection(async));
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Collection_projection_skip(bool async)
+        {
+            return base.Collection_projection_skip(async);
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Collection_projection_take(bool async)
+        {
+            return base.Collection_projection_take(async);
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Collection_projection_skip_take(bool async)
+        {
+            return base.Collection_projection_skip_take(async);
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Anonymous_projection_skip_empty_collection_FirstOrDefault(bool async)
+        {
+            return base.Anonymous_projection_skip_empty_collection_FirstOrDefault(async);
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Anonymous_projection_take_empty_collection_FirstOrDefault(bool async)
+        {
+            return base.Anonymous_projection_take_empty_collection_FirstOrDefault(async);
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Anonymous_projection_skip_take_empty_collection_FirstOrDefault(bool async)
+        {
+            return base.Anonymous_projection_skip_take_empty_collection_FirstOrDefault(async);
+        }
+
+        public override async Task Checked_context_with_arithmetic_does_not_fail(bool isAsync)
+        {
+            await base.Checked_context_with_arithmetic_does_not_fail(isAsync);
+
+            AssertSql(
+                @"SELECT c
+FROM root c
+WHERE ((c[""Discriminator""] = ""OrderDetail"") AND ((((c[""Quantity""] + 1) = 5) AND ((c[""Quantity""] - 1) = 3)) AND ((c[""Quantity""] * 1) = c[""Quantity""])))
+ORDER BY c[""OrderID""]");
+        }
+
+        public override async Task Checked_context_with_case_to_same_nullable_type_does_not_fail(bool isAsync)
+        {
+            await base.Checked_context_with_case_to_same_nullable_type_does_not_fail(isAsync);
+
+            AssertSql(@"SELECT MAX(c[""Quantity""]) AS c
+FROM root c
+WHERE (c[""Discriminator""] = ""OrderDetail"")");
+        }
+
+        public override async Task Entity_equality_with_null_coalesce_client_side(bool async)
+        {
+            await base.Entity_equality_with_null_coalesce_client_side(async);
+
+            AssertSql(
+                @"@__entity_equality_p_0_CustomerID='ALFKI'
+
+SELECT c
+FROM root c
+WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""CustomerID""] = @__entity_equality_p_0_CustomerID))");
+        }
+
+        public override async Task Entity_equality_contains_with_list_of_null(bool async)
+        {
+            await base.Entity_equality_contains_with_list_of_null(async);
+
+            AssertSql(
+                @"SELECT c
+FROM root c
+WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""CustomerID""] IN (""ALFKI"") OR (c[""CustomerID""] = null)))");
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Perform_identity_resolution_reuses_same_instances(bool async)
+        {
+            return base.Perform_identity_resolution_reuses_same_instances(async);
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task Perform_identity_resolution_reuses_same_instances_across_joins(bool async)
+        {
+            return base.Perform_identity_resolution_reuses_same_instances_across_joins(async);
+        }
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task All_client_and_server_top_level(bool async)
+            => base.All_client_and_server_top_level(async);
+
+        [ConditionalTheory(Skip = "Issue #17246")]
+        public override Task All_client_or_server_top_level(bool async)
+            => base.All_client_or_server_top_level(async);
 
         private void AssertSql(params string[] expected)
             => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);

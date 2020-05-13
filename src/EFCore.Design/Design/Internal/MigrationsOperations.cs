@@ -32,6 +32,7 @@ namespace Microsoft.EntityFrameworkCore.Design.Internal
         private readonly string _language;
         private readonly DesignTimeServicesBuilder _servicesBuilder;
         private readonly DbContextOperations _contextOperations;
+        private readonly string[] _args;
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -53,20 +54,22 @@ namespace Microsoft.EntityFrameworkCore.Design.Internal
             Check.NotNull(startupAssembly, nameof(startupAssembly));
             Check.NotNull(projectDir, nameof(projectDir));
             Check.NotNull(rootNamespace, nameof(rootNamespace));
-            Check.NotNull(args, nameof(args));
+            // Note: cannot assert that args is not null - as old versions of
+            // tools can still pass null.
 
             _reporter = reporter;
             _assembly = assembly;
             _projectDir = projectDir;
             _rootNamespace = rootNamespace;
             _language = language;
+            _args = args ?? Array.Empty<string>();
             _contextOperations = new DbContextOperations(
                 reporter,
                 assembly,
                 startupAssembly,
-                args);
+                _args);
 
-            _servicesBuilder = new DesignTimeServicesBuilder(assembly, startupAssembly, reporter, args);
+            _servicesBuilder = new DesignTimeServicesBuilder(assembly, startupAssembly, reporter, _args);
         }
 
         /// <summary>
@@ -78,7 +81,8 @@ namespace Microsoft.EntityFrameworkCore.Design.Internal
         public virtual MigrationFiles AddMigration(
             [NotNull] string name,
             [CanBeNull] string outputDir,
-            [CanBeNull] string contextType)
+            [CanBeNull] string contextType,
+            [CanBeNull] string @namespace)
         {
             Check.NotEmpty(name, nameof(name));
 
@@ -90,12 +94,22 @@ namespace Microsoft.EntityFrameworkCore.Design.Internal
             var subNamespace = SubnamespaceFromOutputPath(outputDir);
 
             using var context = _contextOperations.CreateContext(contextType);
+            var contextClassName = context.GetType().Name;
+            if (string.Equals(name, contextClassName, StringComparison.Ordinal))
+            {
+                throw new OperationException(
+                    DesignStrings.ConflictingContextAndMigrationName(name));
+            }
+
             var services = _servicesBuilder.Build(context);
             EnsureServices(services);
             EnsureMigrationsAssembly(services);
 
             var scaffolder = services.GetRequiredService<IMigrationsScaffolder>();
-            var migration = scaffolder.ScaffoldMigration(name, _rootNamespace, subNamespace, _language);
+            var migration =
+                string.IsNullOrEmpty(@namespace)
+                ? scaffolder.ScaffoldMigration(name, _rootNamespace, subNamespace, _language)
+                : scaffolder.ScaffoldMigration(name, null, @namespace, _language);
             var files = scaffolder.Save(_projectDir, migration, outputDir);
 
             return files;
@@ -171,10 +185,16 @@ namespace Microsoft.EntityFrameworkCore.Design.Internal
         /// </summary>
         public virtual void UpdateDatabase(
             [CanBeNull] string targetMigration,
+            [CanBeNull] string connectionString,
             [CanBeNull] string contextType)
         {
             using (var context = _contextOperations.CreateContext(contextType))
             {
+                if (connectionString != null)
+                {
+                    context.Database.SetConnectionString(connectionString);
+                }
+
                 var services = _servicesBuilder.Build(context);
                 EnsureServices(services);
 

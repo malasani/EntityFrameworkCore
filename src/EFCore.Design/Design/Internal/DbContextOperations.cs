@@ -62,12 +62,13 @@ namespace Microsoft.EntityFrameworkCore.Design.Internal
             Check.NotNull(reporter, nameof(reporter));
             Check.NotNull(assembly, nameof(assembly));
             Check.NotNull(startupAssembly, nameof(startupAssembly));
-            Check.NotNull(args, nameof(args));
+            // Note: cannot assert that args is not null - as old versions of
+            // tools can still pass null.
 
             _reporter = reporter;
             _assembly = assembly;
             _startupAssembly = startupAssembly;
-            _args = args;
+            _args = args ?? Array.Empty<string>();
             _appServicesFactory = appServicesFactory;
         }
 
@@ -165,7 +166,7 @@ namespace Microsoft.EntityFrameworkCore.Design.Internal
                     _reporter.WriteVerbose(DesignStrings.FoundDbContext(context.ShortDisplayName()));
                     contexts.Add(
                         context,
-                        () => CreateContextFromFactory(factory.AsType()));
+                        () => CreateContextFromFactory(factory.AsType(), context));
                 }
             }
 
@@ -203,9 +204,9 @@ namespace Microsoft.EntityFrameworkCore.Design.Internal
                     {
                         try
                         {
-                            return (DbContext)Activator.CreateInstance(context);
+                            return (DbContext)ActivatorUtilities.GetServiceOrCreateInstance(appServices, context);
                         }
-                        catch (MissingMethodException ex)
+                        catch (Exception ex)
                         {
                             throw new OperationException(DesignStrings.NoParameterlessConstructor(context.Name), ex);
                         }
@@ -258,15 +259,16 @@ namespace Microsoft.EntityFrameworkCore.Design.Internal
             var factoryInterface = typeof(IDesignTimeDbContextFactory<>).MakeGenericType(contextType);
             var factory = contextType.Assembly.GetConstructibleTypes()
                 .FirstOrDefault(t => factoryInterface.IsAssignableFrom(t));
-            return factory == null ? (Func<DbContext>)null : (() => CreateContextFromFactory(factory.AsType()));
+            return factory == null ? (Func<DbContext>)null : (() => CreateContextFromFactory(factory.AsType(), contextType));
         }
 
-        private DbContext CreateContextFromFactory(Type factory)
+        private DbContext CreateContextFromFactory(Type factory, Type contextType)
         {
             _reporter.WriteVerbose(DesignStrings.UsingDbContextFactory(factory.ShortDisplayName()));
 
-            return ((IDesignTimeDbContextFactory<DbContext>)Activator.CreateInstance(factory))
-                .CreateDbContext(_args);
+            return (DbContext)typeof(IDesignTimeDbContextFactory<>).MakeGenericType(contextType)
+                .GetMethod("CreateDbContext", new[] { typeof(string[]) })
+                .Invoke(Activator.CreateInstance(factory), new object[] { _args });
         }
 
         private KeyValuePair<Type, Func<DbContext>> FindContextType(string name)

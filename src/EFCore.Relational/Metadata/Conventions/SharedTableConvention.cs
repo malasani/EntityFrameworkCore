@@ -16,7 +16,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
     /// <summary>
     ///     A convention that manipulates names of database objects for entity types that share a table to avoid clashes.
     /// </summary>
-    public class SharedTableConvention : IModelFinalizedConvention
+    public class SharedTableConvention : IModelFinalizingConvention
     {
         /// <summary>
         ///     Creates a new instance of <see cref="SharedTableConvention" />.
@@ -35,12 +35,8 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
         /// </summary>
         protected virtual ProviderConventionSetBuilderDependencies Dependencies { get; }
 
-        /// <summary>
-        ///     Called after a model is finalized.
-        /// </summary>
-        /// <param name="modelBuilder"> The builder for the model. </param>
-        /// <param name="context"> Additional information associated with convention execution. </param>
-        public virtual void ProcessModelFinalized(IConventionModelBuilder modelBuilder, IConventionContext<IConventionModelBuilder> context)
+        /// <inheritdoc />
+        public virtual void ProcessModelFinalizing(IConventionModelBuilder modelBuilder, IConventionContext<IConventionModelBuilder> context)
         {
             var maxLength = modelBuilder.Metadata.GetMaxIdentifierLength();
             var tables = new Dictionary<(string, string), List<IConventionEntityType>>();
@@ -73,6 +69,12 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
             foreach (var entityType in model.GetEntityTypes())
             {
                 var tableName = (Schema: entityType.GetSchema(), TableName: entityType.GetTableName());
+                if (tableName.TableName == null
+                    || entityType.FindPrimaryKey() == null)
+                {
+                    continue;
+                }
+
                 if (!tables.TryGetValue(tableName, out var entityTypes))
                 {
                     entityTypes = new List<IConventionEntityType>();
@@ -82,7 +84,6 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                 if (entityTypes.Count > 0)
                 {
                     var shouldUniquifyTable = ShouldUniquify(entityType, entityTypes);
-
                     if (shouldUniquifyTable)
                     {
                         if (entityType[RelationalAnnotationNames.TableName] == null)
@@ -156,9 +157,9 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                     continue;
                 }
 
-                var identifyingMemberInfo = property.GetIdentifyingMemberInfo();
+                var identifyingMemberInfo = property.PropertyInfo ?? (MemberInfo)property.FieldInfo;
                 if (identifyingMemberInfo != null
-                    && identifyingMemberInfo.IsSameAs(otherProperty.GetIdentifyingMemberInfo()))
+                    && identifyingMemberInfo.IsSameAs(otherProperty.PropertyInfo ?? (MemberInfo)otherProperty.FieldInfo))
                 {
                     continue;
                 }
@@ -166,7 +167,8 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                 var usePrefix = property.DeclaringEntityType != otherProperty.DeclaringEntityType
                     || property.IsPrimaryKey()
                     || otherProperty.IsPrimaryKey();
-                if (!property.IsPrimaryKey())
+                if (!property.IsPrimaryKey()
+                    && !property.IsConcurrencyToken)
                 {
                     var newColumnName = TryUniquify(property, columnName, properties, usePrefix, maxLength);
                     if (newColumnName != null)
@@ -176,7 +178,8 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                     }
                 }
 
-                if (!otherProperty.IsPrimaryKey())
+                if (!otherProperty.IsPrimaryKey()
+                    && !otherProperty.IsConcurrencyToken)
                 {
                     var newColumnName = TryUniquify(otherProperty, columnName, properties, usePrefix, maxLength);
                     if (newColumnName != null)

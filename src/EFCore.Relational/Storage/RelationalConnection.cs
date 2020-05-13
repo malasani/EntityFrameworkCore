@@ -2,9 +2,11 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Collections.Concurrent;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Transactions;
@@ -39,7 +41,7 @@ namespace Microsoft.EntityFrameworkCore.Storage
         private int _openedCount;
         private bool _openedInternally;
         private int? _commandTimeout;
-        private Transaction _ambientTransaction;
+        private readonly ConcurrentStack<Transaction> _ambientTransactions;
         private DbConnection _connection;
 
         /// <summary>
@@ -76,6 +78,7 @@ namespace Microsoft.EntityFrameworkCore.Storage
             {
                 _connectionOwned = true;
             }
+            _ambientTransactions = new ConcurrentStack<Transaction>();
         }
 
         /// <summary>
@@ -123,7 +126,7 @@ namespace Microsoft.EntityFrameworkCore.Storage
         /// </summary>
         /// <returns> The connection string. </returns>
         /// <exception cref="InvalidOperationException"> when connection string cannot be obtained. </exception>
-        public virtual string GetCheckedConnectionString()
+        protected virtual string GetValidatedConnectionString()
         {
             var connectionString = ConnectionString;
             if (connectionString == null)
@@ -407,7 +410,7 @@ namespace Microsoft.EntityFrameworkCore.Storage
         ///     Specifies an existing <see cref="DbTransaction" /> to be used for database operations.
         /// </summary>
         /// <param name="transaction"> The transaction to be used. </param>
-        /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
+        /// <param name="cancellationToken"> A <see cref="CancellationToken" /> to observe while waiting for the task to complete. </param>
         /// <returns> An instance of <see cref="IDbTransaction" /> that wraps the provided transaction. </returns>
         public virtual async Task<IDbContextTransaction> UseTransactionAsync(
             DbTransaction transaction,
@@ -464,6 +467,21 @@ namespace Microsoft.EntityFrameworkCore.Storage
         }
 
         /// <summary>
+        ///     Commits all changes made to the database in the current transaction.
+        /// </summary>
+        /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
+        /// <returns> A Task representing the asynchronous operation. </returns>
+        public virtual Task CommitTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            if (CurrentTransaction == null)
+            {
+                throw new InvalidOperationException(RelationalStrings.NoActiveTransaction);
+            }
+
+            return CurrentTransaction.CommitAsync(cancellationToken);
+        }
+
+        /// <summary>
         ///     Discards all changes made to the database in the current transaction.
         /// </summary>
         public virtual void RollbackTransaction()
@@ -474,6 +492,101 @@ namespace Microsoft.EntityFrameworkCore.Storage
             }
 
             CurrentTransaction.Rollback();
+        }
+
+        /// <summary>
+        ///     Discards all changes made to the database in the current transaction.
+        /// </summary>
+        /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
+        /// <returns> A Task representing the asynchronous operation. </returns>
+        public virtual Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            if (CurrentTransaction == null)
+            {
+                throw new InvalidOperationException(RelationalStrings.NoActiveTransaction);
+            }
+
+            return CurrentTransaction.RollbackAsync(cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public virtual void CreateSavepoint(string savepointName)
+        {
+            if (CurrentTransaction == null)
+            {
+                throw new InvalidOperationException(RelationalStrings.NoActiveTransaction);
+            }
+
+            CurrentTransaction.Save(savepointName);
+        }
+
+        /// <inheritdoc />
+        public virtual Task CreateSavepointAsync(string savepointName, CancellationToken cancellationToken = default)
+        {
+            if (CurrentTransaction == null)
+            {
+                throw new InvalidOperationException(RelationalStrings.NoActiveTransaction);
+            }
+
+            return CurrentTransaction.SaveAsync(savepointName, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public virtual void RollbackSavepoint(string savepointName)
+        {
+            if (CurrentTransaction == null)
+            {
+                throw new InvalidOperationException(RelationalStrings.NoActiveTransaction);
+            }
+
+            CurrentTransaction.Rollback(savepointName);
+        }
+
+        /// <inheritdoc />
+        public virtual Task RollbackSavepointAsync(string savepointName, CancellationToken cancellationToken = default)
+        {
+            if (CurrentTransaction == null)
+            {
+                throw new InvalidOperationException(RelationalStrings.NoActiveTransaction);
+            }
+
+            return CurrentTransaction.RollbackAsync(savepointName, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public virtual void ReleaseSavepoint(string savepointName)
+        {
+            if (CurrentTransaction == null)
+            {
+                throw new InvalidOperationException(RelationalStrings.NoActiveTransaction);
+            }
+
+            CurrentTransaction.Release(savepointName);
+        }
+
+        /// <inheritdoc />
+        public virtual Task ReleaseSavepointAsync(string savepointName, CancellationToken cancellationToken = default)
+        {
+            if (CurrentTransaction == null)
+            {
+                throw new InvalidOperationException(RelationalStrings.NoActiveTransaction);
+            }
+
+            return CurrentTransaction.ReleaseAsync(savepointName, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public virtual bool AreSavepointsSupported
+        {
+            get
+            {
+                if (CurrentTransaction == null)
+                {
+                    throw new InvalidOperationException(RelationalStrings.NoActiveTransaction);
+                }
+
+                return CurrentTransaction.AreSavepointsSupported;
+            }
         }
 
         /// <summary>
@@ -548,11 +661,16 @@ namespace Microsoft.EntityFrameworkCore.Storage
         {
             CurrentTransaction = null;
             EnlistedTransaction = null;
-            if (clearAmbient
-                && _ambientTransaction != null)
+            if (clearAmbient && _ambientTransactions.Count > 0)
             {
-                _ambientTransaction.TransactionCompleted -= HandleTransactionCompleted;
-                _ambientTransaction = null;
+                while (_ambientTransactions.Any(t => t != null))
+                {
+                    _ambientTransactions.TryPop(out var ambientTransaction);
+                    if (ambientTransaction != null)
+                    {
+                        ambientTransaction.TransactionCompleted -= HandleTransactionCompleted;
+                    }
+                }
             }
 
             if (_openedCount < 0)
@@ -629,53 +747,52 @@ namespace Microsoft.EntityFrameworkCore.Storage
         private void HandleAmbientTransactions()
         {
             var current = Transaction.Current;
-            if (current != null
-                && !SupportsAmbientTransactions)
+
+            if (current == null)
+            {
+                var rootTransaction = _ambientTransactions.Count > 0 && _ambientTransactions.TryPeek(out var transaction) ? transaction : null;
+
+                if (rootTransaction != null)
+                {
+                    throw new InvalidOperationException(RelationalStrings.PendingAmbientTransaction);
+                }
+
+                return;
+            }
+
+            if (!SupportsAmbientTransactions)
             {
                 Dependencies.TransactionLogger.AmbientTransactionWarning(this, DateTimeOffset.UtcNow);
                 return;
             }
 
-            if (Equals(current, _ambientTransaction))
+            if (_ambientTransactions.Contains(current))
             {
                 return;
             }
 
-            if (_ambientTransaction != null)
-            {
-                throw new InvalidOperationException(RelationalStrings.PendingAmbientTransaction);
-            }
-
-            if (current != null)
-            {
-                Dependencies.TransactionLogger.AmbientTransactionEnlisted(this, current);
-            }
+            Dependencies.TransactionLogger.AmbientTransactionEnlisted(this, current);
+            current.TransactionCompleted += HandleTransactionCompleted;
 
             DbConnection.EnlistTransaction(current);
-
-            var ambientTransaction = _ambientTransaction;
-            if (ambientTransaction != null)
-            {
-                ambientTransaction.TransactionCompleted -= HandleTransactionCompleted;
-            }
-
-            if (current != null)
-            {
-                current.TransactionCompleted += HandleTransactionCompleted;
-            }
-
-            _ambientTransaction = current;
+            _ambientTransactions.Push(current);
         }
 
         private void HandleTransactionCompleted(object sender, TransactionEventArgs e)
         {
             // This could be invoked on a different thread at arbitrary time after the transaction completes
-            var ambientTransaction = _ambientTransaction;
+            _ambientTransactions.TryPeek(out var ambientTransaction);
+            if (e.Transaction != ambientTransaction)
+            {
+                throw new InvalidOperationException(RelationalStrings.NestedAmbientTransactionError);
+            }
+
             if (ambientTransaction != null)
             {
                 ambientTransaction.TransactionCompleted -= HandleTransactionCompleted;
-                _ambientTransaction = null;
             }
+
+            _ambientTransactions.TryPop(out var _);
         }
 
         /// <summary>

@@ -147,13 +147,14 @@ namespace Microsoft.EntityFrameworkCore.Query
         [MemberData(nameof(IsAsyncData))]
         public virtual Task Select_Where_Navigation_Client(bool async)
         {
-            return AssertTranslationFailed(
+            return AssertTranslationFailedWithDetails(
                 () => AssertQuery(
                     async,
                     ss => from o in ss.Set<Order>()
                           where o.Customer.IsLondon
                           select o,
-                    entryCount: 46));
+                    entryCount: 46),
+                CoreStrings.QueryUnableToTranslateMember(nameof(Customer.IsLondon), nameof(Customer)));
         }
 
         [ConditionalTheory]
@@ -282,9 +283,6 @@ namespace Microsoft.EntityFrameworkCore.Query
                 ss => from e in ss.Set<Employee>()
                       where e.Manager.Manager == null
                       select e,
-                ss => from e in ss.Set<Employee>()
-                      where Maybe(e.Manager, () => e.Manager.Manager) == null
-                      select e,
                 entryCount: 6);
         }
 
@@ -313,7 +311,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 ss => from o in ss.Set<Order>().Include(o => o.Customer)
                       where o.Customer.City == "Seattle"
                       select o,
-                new List<IExpectedInclude> { new ExpectedInclude<Order>(o => o.Customer, "Customer") },
+                new List<IExpectedInclude> { new ExpectedInclude<Order>(o => o.Customer) },
                 entryCount: 15);
         }
 
@@ -323,8 +321,8 @@ namespace Microsoft.EntityFrameworkCore.Query
         {
             var expectedIncludes = new List<IExpectedInclude>
             {
-                new ExpectedInclude<OrderDetail>(od => od.Order, "Order"),
-                new ExpectedInclude<Order>(o => o.Customer, "Customer", "Order")
+                new ExpectedInclude<OrderDetail>(od => od.Order),
+                new ExpectedInclude<Order>(o => o.Customer, "Order")
             };
 
             return AssertIncludeQuery(
@@ -607,7 +605,7 @@ namespace Microsoft.EntityFrameworkCore.Query
         [MemberData(nameof(IsAsyncData))]
         public virtual Task Collection_select_nav_prop_all_client(bool async)
         {
-            return AssertTranslationFailed(
+            return AssertTranslationFailedWithDetails(
                 () => AssertQuery(
                     async,
                     ss => from c in ss.Set<Customer>()
@@ -616,7 +614,8 @@ namespace Microsoft.EntityFrameworkCore.Query
                     ss => from c in ss.Set<Customer>()
                           orderby c.CustomerID
                           select new { All = (c.Orders ?? new List<Order>()).All(o => false) },
-                    assertOrder: true));
+                    assertOrder: true),
+                CoreStrings.QueryUnableToTranslateMember(nameof(Order.ShipCity), nameof(Order)));
         }
 
         [ConditionalTheory]
@@ -638,13 +637,14 @@ namespace Microsoft.EntityFrameworkCore.Query
         [MemberData(nameof(IsAsyncData))]
         public virtual Task Collection_where_nav_prop_all_client(bool async)
         {
-            return AssertTranslationFailed(
+            return AssertTranslationFailedWithDetails(
                 () => AssertQuery(
                     async,
                     ss => from c in ss.Set<Customer>()
                           orderby c.CustomerID
                           where c.Orders.All(o => o.ShipCity == "London")
-                          select c));
+                          select c),
+                CoreStrings.QueryUnableToTranslateMember(nameof(Order.ShipCity), nameof(Order)));
         }
 
         [ConditionalTheory]

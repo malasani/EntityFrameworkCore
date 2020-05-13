@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
 using System.Threading;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -69,7 +68,7 @@ namespace Microsoft.EntityFrameworkCore.Query.Internal
             for (var i = 0; i < parameters.Length; i++)
             {
                 queryContext.AddParameter(
-                    CompiledQueryCache.CompiledQueryParameterPrefix + _queryExpression.Parameters[i + 1].Name,
+                    QueryCompilationContext.QueryParameterPrefix + _queryExpression.Parameters[i + 1].Name,
                     parameters[i]);
             }
 
@@ -122,7 +121,7 @@ namespace Microsoft.EntityFrameworkCore.Query.Internal
                 return _parameters.Contains(parameterExpression)
                     ? Expression.Parameter(
                         parameterExpression.Type,
-                        CompiledQueryCache.CompiledQueryParameterPrefix + parameterExpression.Name)
+                        QueryCompilationContext.QueryParameterPrefix + parameterExpression.Name)
                     : parameterExpression;
             }
         }

@@ -15,6 +15,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Storage.Internal;
 using Microsoft.EntityFrameworkCore.Utilities;
 
+#nullable enable
+
 namespace Microsoft.EntityFrameworkCore.Scaffolding.Internal
 {
     /// <summary>
@@ -50,7 +52,9 @@ namespace Microsoft.EntityFrameworkCore.Scaffolding.Internal
             Check.NotNull(databaseModelFactory, nameof(databaseModelFactory));
             Check.NotNull(scaffoldingModelFactory, nameof(scaffoldingModelFactory));
             Check.NotNull(modelCodeGeneratorSelector, nameof(modelCodeGeneratorSelector));
+            Check.NotNull(cSharpUtilities, nameof(cSharpUtilities));
             Check.NotNull(cSharpHelper, nameof(cSharpHelper));
+            Check.NotNull(connectionStringResolver, nameof(connectionStringResolver));
 
             _databaseModelFactory = databaseModelFactory;
             _factory = scaffoldingModelFactory;
@@ -105,6 +109,13 @@ namespace Microsoft.EntityFrameworkCore.Scaffolding.Internal
             }
 
             var databaseModel = _databaseModelFactory.Create(resolvedConnectionString, databaseOptions);
+            var modelConnectionString = (string?)(databaseModel[ScaffoldingAnnotationNames.ConnectionString]);
+            if (!string.IsNullOrEmpty(modelConnectionString))
+            {
+                codeOptions.ConnectionString = modelConnectionString;
+                databaseModel.RemoveAnnotation(ScaffoldingAnnotationNames.ConnectionString);
+            }
+
             var model = _factory.Create(databaseModel, modelOptions.UseDatabaseNames);
 
             if (model == null)
@@ -142,7 +153,7 @@ namespace Microsoft.EntityFrameworkCore.Scaffolding.Internal
 
             Directory.CreateDirectory(outputDir);
 
-            var contextPath = Path.GetFullPath(Path.Combine(outputDir, scaffoldedModel.ContextFile.Path));
+            var contextPath = Path.GetFullPath(Path.Combine(outputDir, scaffoldedModel.ContextFile!.Path));
             Directory.CreateDirectory(Path.GetDirectoryName(contextPath));
             File.WriteAllText(contextPath, scaffoldedModel.ContextFile.Code, Encoding.UTF8);
 
@@ -163,7 +174,7 @@ namespace Microsoft.EntityFrameworkCore.Scaffolding.Internal
             bool overwriteFiles)
         {
             var paths = scaffoldedModel.AdditionalFiles.Select(f => f.Path).ToList();
-            paths.Insert(0, scaffoldedModel.ContextFile.Path);
+            paths.Insert(0, scaffoldedModel.ContextFile!.Path);
 
             var existingFiles = new List<string>();
             var readOnlyFiles = new List<string>();
@@ -173,11 +184,11 @@ namespace Microsoft.EntityFrameworkCore.Scaffolding.Internal
 
                 if (File.Exists(fullPath))
                 {
-                    existingFiles.Add(path);
+                    existingFiles.Add(path!);
 
                     if (File.GetAttributes(fullPath).HasFlag(FileAttributes.ReadOnly))
                     {
-                        readOnlyFiles.Add(path);
+                        readOnlyFiles.Add(path!);
                     }
                 }
             }

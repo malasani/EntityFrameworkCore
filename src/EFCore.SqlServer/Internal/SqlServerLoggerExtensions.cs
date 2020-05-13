@@ -96,6 +96,50 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
+        public static void ConflictingValueGenerationStrategiesWarning(
+            [NotNull] this IDiagnosticsLogger<DbLoggerCategory.Model.Validation> diagnostics,
+            SqlServerValueGenerationStrategy sqlServerValueGenerationStrategy,
+            [NotNull] string otherValueGenerationStrategy,
+            [NotNull] IProperty property)
+        {
+            var definition = SqlServerResources.LogConflictingValueGenerationStrategies(diagnostics);
+
+            if (diagnostics.ShouldLog(definition))
+            {
+                definition.Log(diagnostics, sqlServerValueGenerationStrategy.ToString(), otherValueGenerationStrategy,
+                    property.Name, property.DeclaringEntityType.DisplayName());
+            }
+
+            if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+            {
+                var eventData = new ConflictingValueGenerationStrategiesEventData(
+                    definition,
+                    ConflictingValueGenerationStrategiesWarning,
+                    sqlServerValueGenerationStrategy,
+                    otherValueGenerationStrategy,
+                    property);
+
+                diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+            }
+        }
+
+        private static string ConflictingValueGenerationStrategiesWarning(EventDefinitionBase definition, EventData payload)
+        {
+            var d = (EventDefinition<string, string, string, string>)definition;
+            var p = (ConflictingValueGenerationStrategiesEventData)payload;
+            return d.GenerateMessage(
+                p.SqlServerValueGenerationStrategy.ToString(),
+                p.OtherValueGenerationStrategy,
+                p.Property.Name,
+                p.Property.DeclaringEntityType.DisplayName());
+        }
+
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
         public static void ColumnFound(
             [NotNull] this IDiagnosticsLogger<DbLoggerCategory.Scaffolding> diagnostics,
             [NotNull] string tableName,
@@ -108,7 +152,8 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
             bool nullable,
             bool identity,
             [CanBeNull] string defaultValue,
-            [CanBeNull] string computedValue)
+            [CanBeNull] string computedValue,
+            bool? computedValueIsStored)
         {
             var definition = SqlServerResources.LogFoundColumn(diagnostics);
 
@@ -130,7 +175,8 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
                         nullable,
                         identity,
                         defaultValue,
-                        computedValue));
+                        computedValue,
+                        computedValueIsStored));
             }
 
             // No DiagnosticsSource events because these are purely design-time messages

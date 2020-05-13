@@ -3,14 +3,21 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Utilities;
 
 namespace Microsoft.EntityFrameworkCore.Query.Internal
 {
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     public class SubqueryMemberPushdownExpressionVisitor : ExpressionVisitor
     {
         private static readonly List<MethodInfo> _supportedMethods = new List<MethodInfo>
@@ -41,6 +48,25 @@ namespace Microsoft.EntityFrameworkCore.Query.Internal
             { QueryableMethods.LastOrDefaultWithPredicate, QueryableMethods.LastOrDefaultWithoutPredicate }
         };
 
+        private readonly IModel _model;
+
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
+        public SubqueryMemberPushdownExpressionVisitor([NotNull] IModel model)
+        {
+            _model = model;
+        }
+
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
         protected override Expression VisitMember(MemberExpression memberExpression)
         {
             Check.NotNull(memberExpression, nameof(memberExpression));
@@ -66,6 +92,12 @@ namespace Microsoft.EntityFrameworkCore.Query.Internal
             return memberExpression.Update(innerExpression);
         }
 
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
         protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
         {
             Check.NotNull(methodCallExpression, nameof(methodCallExpression));
@@ -92,6 +124,37 @@ namespace Microsoft.EntityFrameworkCore.Query.Internal
                                 EF.PropertyMethod.MakeGenericMethod(propertyType),
                                 target,
                                 methodCallExpression.Arguments[1]);
+                        },
+                        methodCallExpression.Type);
+                }
+            }
+
+            if (methodCallExpression.TryGetIndexerArguments(_model, out source, out _))
+            {
+                source = Visit(source);
+
+                if (source is MethodCallExpression innerMethodCall
+                    && innerMethodCall.Method.IsGenericMethod
+                    && _supportedMethods.Contains(innerMethodCall.Method.GetGenericMethodDefinition()))
+                {
+                    return PushdownMember(
+                        innerMethodCall,
+                        (target, nullable) =>
+                        {
+                            var propertyType = methodCallExpression.Type;
+                            if (nullable && !propertyType.IsNullableType())
+                            {
+                                propertyType = propertyType.MakeNullable();
+                            }
+
+                            var indexerExpression = Expression.Call(
+                                target,
+                                methodCallExpression.Method,
+                                new[] { methodCallExpression.Arguments[0] });
+
+                            return nullable && !indexerExpression.Type.IsNullableType()
+                                ? Expression.Convert(indexerExpression, indexerExpression.Type.MakeNullable())
+                                : (Expression)indexerExpression;
                         },
                         methodCallExpression.Type);
                 }

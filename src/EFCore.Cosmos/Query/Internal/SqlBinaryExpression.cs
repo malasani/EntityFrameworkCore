@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using JetBrains.Annotations;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.Utilities;
@@ -37,7 +38,6 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
             ExpressionType.Equal,
             ExpressionType.NotEqual,
             ExpressionType.ExclusiveOr,
-            ExpressionType.Coalesce,
             ExpressionType.RightShift,
             ExpressionType.LeftShift
         };
@@ -45,7 +45,7 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
         private static ExpressionType VerifyOperator(ExpressionType operatorType)
             => _allowedOperators.Contains(operatorType)
                 ? operatorType
-                : throw new InvalidOperationException("Unsupported Binary operator type specified.");
+                : throw new InvalidOperationException(CoreStrings.UnsupportedBinaryOperator);
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -160,12 +160,8 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
             {
                 expressionPrinter.Append(")");
             }
-        }
 
-        private bool RequiresBrackets(SqlExpression expression)
-        {
-            return expression is SqlBinaryExpression sqlBinary
-                   && sqlBinary.OperatorType != ExpressionType.Coalesce;
+            static bool RequiresBrackets(SqlExpression expression) => expression is SqlBinaryExpression;
         }
 
         /// <summary>

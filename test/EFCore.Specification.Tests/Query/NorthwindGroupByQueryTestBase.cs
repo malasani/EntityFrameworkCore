@@ -299,14 +299,21 @@ namespace Microsoft.EntityFrameworkCore.Query
 
         [ConditionalTheory]
         [MemberData(nameof(IsAsyncData))]
-        public virtual Task GroupBy_with_grouping_key_using_Like(bool async)
+        public virtual async Task GroupBy_with_grouping_key_using_Like(bool async)
         {
-            return AssertQuery(
-                async,
-                ss => ss.Set<Order>()
-                    .GroupBy(o => EF.Functions.Like(o.CustomerID, "A%"))
-                    .Select(g => new { g.Key, Count = g.Count() }),
-                elementSorter: e => e.Key);
+            using var context = CreateContext();
+
+            var query = context.Set<Order>()
+                .GroupBy(o => EF.Functions.Like(o.CustomerID, "A%"))
+                .Select(g => new { g.Key, Count = g.Count() });
+
+            var result = async
+                ? await query.ToListAsync()
+                : query.ToList();
+
+            Assert.Equal(2, result.Count);
+            Assert.Equal(800, result.Single(t => !t.Key).Count);
+            Assert.Equal(30, result.Single(t => t.Key).Count);
         }
 
         [ConditionalTheory]
@@ -2198,7 +2205,7 @@ namespace Microsoft.EntityFrameworkCore.Query
             return AssertSingleResult(
                 async,
                 ss => ss.Set<Order>().GroupBy(o => o.CustomerID).Select(g => g.Sum(gg => gg.OrderID)).Count(),
-                ss => ss.Set<Order>().GroupBy(o => o.CustomerID).Select(g => g.Sum(gg => gg.OrderID)).CountAsync());
+                ss => ss.Set<Order>().GroupBy(o => o.CustomerID).Select(g => g.Sum(gg => gg.OrderID)).CountAsync(default));
         }
 
         [ConditionalTheory(Skip = "Issue #18836")]
@@ -2214,7 +2221,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 ss => (from o in ss.Set<Order>()
                        group o by new { o.CustomerID }
                        into g
-                       select g.Where(e => e.OrderID < 10300).Count()).LongCountAsync());
+                       select g.Where(e => e.OrderID < 10300).Count()).LongCountAsync(default));
         }
 
         [ConditionalTheory]
@@ -2396,6 +2403,27 @@ namespace Microsoft.EntityFrameworkCore.Query
                             Count = g.Count()
                         }),
                 elementSorter: e => e.Key);
+        }
+
+
+
+        [ConditionalTheory]
+        [MemberData(nameof(IsAsyncData))]
+        public virtual Task GroupBy_scalar_aggregate_in_set_operation(bool async)
+        {
+            return AssertQuery(
+                async,
+                ss => ss.Set<Customer>()
+                    .Where(c => c.CustomerID.StartsWith("F"))
+                    .Select(c => new { c.CustomerID, Sequence = 0 })
+                    .Union(ss.Set<Order>()
+                        .GroupBy(o => o.CustomerID)
+                        .Select(g => new
+                        {
+                            CustomerID = g.Key,
+                            Sequence = 1
+                        })),
+                elementSorter: e => (e.CustomerID, e.Sequence));
         }
 
         #endregion

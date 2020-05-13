@@ -135,12 +135,12 @@ WHERE CHARINDEX(N'z', [c].[ContactName]) > 0");
             AssertSql(
                 @"SELECT [c].[CustomerID], [c].[Address], [c].[City], [c].[CompanyName], [c].[ContactName], [c].[ContactTitle], [c].[Country], [c].[Fax], [c].[Phone], [c].[PostalCode], [c].[Region]
 FROM [Customers] AS [c]
-WHERE [c].[CustomerID] IN (
-    SELECT [o].[CustomerID]
+WHERE EXISTS (
+    SELECT 1
     FROM (
         SELECT * FROM ""Orders""
     ) AS [o]
-)");
+    WHERE [o].[CustomerID] = [c].[CustomerID])");
         }
 
         public override void FromSqlRaw_composed_contains2()
@@ -150,12 +150,12 @@ WHERE [c].[CustomerID] IN (
             AssertSql(
                 @"SELECT [c].[CustomerID], [c].[Address], [c].[City], [c].[CompanyName], [c].[ContactName], [c].[ContactTitle], [c].[Country], [c].[Fax], [c].[Phone], [c].[PostalCode], [c].[Region]
 FROM [Customers] AS [c]
-WHERE ([c].[CustomerID] = N'ALFKI') AND [c].[CustomerID] IN (
-    SELECT [o].[CustomerID]
+WHERE ([c].[CustomerID] = N'ALFKI') AND EXISTS (
+    SELECT 1
     FROM (
         SELECT * FROM ""Orders""
     ) AS [o]
-)");
+    WHERE [o].[CustomerID] = [c].[CustomerID])");
         }
 
         public override void FromSqlRaw_queryable_multiple_composed()
@@ -178,8 +178,8 @@ WHERE [c].[CustomerID] = [o].[CustomerID]");
             base.FromSqlRaw_queryable_multiple_composed_with_closure_parameters();
 
             AssertSql(
-                @"p0='1997-01-01T00:00:00'
-p1='1998-01-01T00:00:00'
+                @"p0='1997-01-01T00:00:00.0000000'
+p1='1998-01-01T00:00:00.0000000'
 
 SELECT [c].[CustomerID], [c].[Address], [c].[City], [c].[CompanyName], [c].[ContactName], [c].[ContactTitle], [c].[Country], [c].[Fax], [c].[Phone], [c].[PostalCode], [c].[Region], [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
 FROM (
@@ -197,8 +197,8 @@ WHERE [c].[CustomerID] = [o].[CustomerID]");
 
             AssertSql(
                 @"p0='London' (Size = 4000)
-p1='1997-01-01T00:00:00'
-p2='1998-01-01T00:00:00'
+p1='1997-01-01T00:00:00.0000000'
+p2='1998-01-01T00:00:00.0000000'
 
 SELECT [c].[CustomerID], [c].[Address], [c].[City], [c].[CompanyName], [c].[ContactName], [c].[ContactTitle], [c].[Country], [c].[Fax], [c].[Phone], [c].[PostalCode], [c].[Region], [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
 FROM (
@@ -210,8 +210,8 @@ CROSS JOIN (
 WHERE [c].[CustomerID] = [o].[CustomerID]",
                 //
                 @"p0='Berlin' (Size = 4000)
-p1='1998-04-01T00:00:00'
-p2='1998-05-01T00:00:00'
+p1='1998-04-01T00:00:00.0000000'
+p2='1998-05-01T00:00:00.0000000'
 
 SELECT [c].[CustomerID], [c].[Address], [c].[City], [c].[CompanyName], [c].[ContactName], [c].[ContactTitle], [c].[Country], [c].[Fax], [c].[Phone], [c].[PostalCode], [c].[Region], [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
 FROM (
@@ -296,8 +296,8 @@ SELECT * FROM ""Customers"" WHERE ""City"" = @p0 AND ""ContactTitle"" = @p1");
 
             AssertSql(
                 @"p0='London' (Size = 4000)
-p1='1997-01-01T00:00:00'
-p2='1998-01-01T00:00:00'
+p1='1997-01-01T00:00:00.0000000'
+p2='1998-01-01T00:00:00.0000000'
 
 SELECT [c].[CustomerID], [c].[Address], [c].[City], [c].[CompanyName], [c].[ContactName], [c].[ContactTitle], [c].[Country], [c].[Fax], [c].[Phone], [c].[PostalCode], [c].[Region], [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
 FROM (
@@ -309,8 +309,8 @@ CROSS JOIN (
 WHERE [c].[CustomerID] = [o].[CustomerID]",
                 //
                 @"p0='Berlin' (Size = 4000)
-p1='1998-04-01T00:00:00'
-p2='1998-05-01T00:00:00'
+p1='1998-04-01T00:00:00.0000000'
+p2='1998-05-01T00:00:00.0000000'
 
 SELECT [c].[CustomerID], [c].[Address], [c].[City], [c].[CompanyName], [c].[ContactName], [c].[ContactTitle], [c].[Country], [c].[Fax], [c].[Phone], [c].[PostalCode], [c].[Region], [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
 FROM (
@@ -396,15 +396,14 @@ SELECT * FROM ""Customers"" WHERE ""City"" = @p0 AND ""ContactTitle"" = @p1");
         {
             base.FromSqlRaw_queryable_simple_projection_composed();
 
-            // issue #16079
-            //            AssertSql(
-            //                @"SELECT [p].[ProductName]
-            //FROM (
-            //    SELECT *
-            //    FROM ""Products""
-            //    WHERE ""Discontinued"" <> CAST(1 AS bit)
-            //    AND ((""UnitsInStock"" + ""UnitsOnOrder"") < ""ReorderLevel"")
-            //) AS [p]");
+            AssertSql(
+                @"SELECT [p].[ProductName]
+FROM (
+    SELECT *
+    FROM ""Products""
+    WHERE ""Discontinued"" <> CAST(1 AS bit)
+    AND ((""UnitsInStock"" + ""UnitsOnOrder"") < ""ReorderLevel"")
+) AS [p]");
         }
 
         public override void FromSqlRaw_queryable_simple_include()
@@ -581,12 +580,12 @@ SELECT * FROM ""Customers"" WHERE ""CustomerID"" = @somename");
 
 SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
 FROM [Orders] AS [o]
-WHERE [o].[CustomerID] IN (
-    SELECT [c].[CustomerID]
+WHERE EXISTS (
+    SELECT 1
     FROM (
         SELECT * FROM ""Customers"" WHERE ""City"" = @city
     ) AS [c]
-)");
+    WHERE [c].[CustomerID] = [o].[CustomerID])");
         }
 
         [ConditionalFact]
@@ -611,12 +610,12 @@ WHERE [o].[CustomerID] IN (
 
 SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
 FROM [Orders] AS [o]
-WHERE [o].[CustomerID] IN (
-    SELECT [c].[CustomerID]
+WHERE EXISTS (
+    SELECT 1
     FROM (
         SELECT * FROM ""Customers"" WHERE ""City"" = @p0
     ) AS [c]
-)");
+    WHERE [c].[CustomerID] = [o].[CustomerID])");
         }
 
         [ConditionalFact]
@@ -641,12 +640,12 @@ WHERE [o].[CustomerID] IN (
 
 SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
 FROM [Orders] AS [o]
-WHERE [o].[CustomerID] IN (
-    SELECT [c].[CustomerID]
+WHERE EXISTS (
+    SELECT 1
     FROM (
         SELECT * FROM ""Customers"" WHERE ""City"" = @city
     ) AS [c]
-)");
+    WHERE [c].[CustomerID] = [o].[CustomerID])");
         }
 
         [ConditionalFact]
@@ -690,24 +689,24 @@ WHERE [o].[CustomerID] IN (
 
 SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
 FROM [Orders] AS [o]
-WHERE [o].[CustomerID] IN (
-    SELECT [c].[CustomerID]
+WHERE EXISTS (
+    SELECT 1
     FROM (
         SELECT * FROM ""Customers"" WHERE ""City"" = @p0 AND ""ContactTitle"" = @title
     ) AS [c]
-)",
+    WHERE [c].[CustomerID] = [o].[CustomerID])",
                 //
                 @"@city='London' (Nullable = false) (Size = 6)
 p1='Sales Representative' (Size = 4000)
 
 SELECT [o].[OrderID], [o].[CustomerID], [o].[EmployeeID], [o].[OrderDate]
 FROM [Orders] AS [o]
-WHERE [o].[CustomerID] IN (
-    SELECT [c].[CustomerID]
+WHERE EXISTS (
+    SELECT 1
     FROM (
         SELECT * FROM ""Customers"" WHERE ""City"" = @city AND ""ContactTitle"" = @p1
     ) AS [c]
-)");
+    WHERE [c].[CustomerID] = [o].[CustomerID])");
         }
 
         public override void FromSqlInterpolated_parameterization_issue_12213()
@@ -717,31 +716,34 @@ WHERE [o].[CustomerID] IN (
             AssertSql(
                 @"p0='10300'
 
-SELECT * FROM ""Orders"" WHERE ""OrderID"" >= @p0",
+SELECT [o].[OrderID]
+FROM (
+    SELECT * FROM ""Orders"" WHERE ""OrderID"" >= @p0
+) AS [o]",
                 //
                 @"@__max_0='10400'
 p0='10300'
 
 SELECT [o].[OrderID]
 FROM [Orders] AS [o]
-WHERE ([o].[OrderID] <= @__max_0) AND [o].[OrderID] IN (
-    SELECT [o0].[OrderID]
+WHERE ([o].[OrderID] <= @__max_0) AND EXISTS (
+    SELECT 1
     FROM (
         SELECT * FROM ""Orders"" WHERE ""OrderID"" >= @p0
     ) AS [o0]
-)",
+    WHERE [o0].[OrderID] = [o].[OrderID])",
                 //
                 @"@__max_0='10400'
 p0='10300'
 
 SELECT [o].[OrderID]
 FROM [Orders] AS [o]
-WHERE ([o].[OrderID] <= @__max_0) AND [o].[OrderID] IN (
-    SELECT [o0].[OrderID]
+WHERE ([o].[OrderID] <= @__max_0) AND EXISTS (
+    SELECT 1
     FROM (
         SELECT * FROM ""Orders"" WHERE ""OrderID"" >= @p0
     ) AS [o0]
-)");
+    WHERE [o0].[OrderID] = [o].[OrderID])");
         }
 
         public override void FromSqlRaw_does_not_parameterize_interpolated_string()
@@ -781,6 +783,54 @@ SELECT [c0].[CustomerID], [c0].[Address], [c0].[City], [c0].[CompanyName], [c0].
 FROM (
     SELECT * FROM ""Customers"" WHERE ""City"" = 'Berlin'
 ) AS [c0]");
+        }
+
+        [ConditionalFact(Skip = "Issue#20364")]
+        public override void Bad_data_error_handling_invalid_cast()
+        {
+            base.Bad_data_error_handling_invalid_cast();
+        }
+
+        [ConditionalFact(Skip = "Issue#20364")]
+        public override void Bad_data_error_handling_invalid_cast_key()
+        {
+            base.Bad_data_error_handling_invalid_cast_key();
+        }
+
+        [ConditionalFact(Skip = "Issue#20364")]
+        public override void Bad_data_error_handling_invalid_cast_no_tracking()
+        {
+            base.Bad_data_error_handling_invalid_cast_no_tracking();
+        }
+
+        [ConditionalFact(Skip = "Issue#20364")]
+        public override void Bad_data_error_handling_invalid_cast_projection()
+        {
+            base.Bad_data_error_handling_invalid_cast_projection();
+        }
+
+        [ConditionalFact(Skip = "Issue#20364")]
+        public override void Bad_data_error_handling_null()
+        {
+            base.Bad_data_error_handling_null();
+        }
+
+        [ConditionalFact(Skip = "Issue#20364")]
+        public override void Bad_data_error_handling_null_no_tracking()
+        {
+            base.Bad_data_error_handling_null_no_tracking();
+        }
+
+        [ConditionalFact(Skip = "Issue#20364")]
+        public override void Bad_data_error_handling_null_projection()
+        {
+            base.Bad_data_error_handling_null_projection();
+        }
+
+        [ConditionalFact(Skip = "Issue#20364")]
+        public override void FromSqlRaw_queryable_simple_columns_out_of_order_and_not_enough_columns_throws()
+        {
+            base.FromSqlRaw_queryable_simple_columns_out_of_order_and_not_enough_columns_throws();
         }
 
         protected override DbParameter CreateDbParameter(string name, object value)

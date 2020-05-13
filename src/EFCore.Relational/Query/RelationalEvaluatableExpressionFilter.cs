@@ -61,6 +61,9 @@ namespace Microsoft.EntityFrameworkCore.Query
             if (expression is MethodCallExpression methodCallExpression
                 && model.FindDbFunction(methodCallExpression.Method) != null)
             {
+                // Never evaluate DbFunction
+                // If it is inside lambda then we will have whole method call
+                // If it is outside of lambda then it will be evaluated for table valued function already.
                 return false;
             }
 
